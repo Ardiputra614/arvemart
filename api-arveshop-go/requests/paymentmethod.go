@@ -1,0 +1,26 @@
+package requests
+
+import "mime/multipart"
+
+type CreatePaymentMethod struct {
+	Name string `form:"name" binding:"required"`
+	FeeType string `form:"fee_type"`
+	PercentageFee float64 `form:"percentage_fee"`
+	NominalFee float64 `form:"nominal_fee" `
+	Type string `form:"type" binding:"required"`
+	IsActive bool `form:"is_active"`
+	Logo *multipart.FileHeader `form:"logo"`	
+	LogoPublicID *string `form:"logo_public_id"`
+}
+
+type UpdatePaymentMethod struct {
+	Name          string                `form:"name" binding:"required"`
+	FeeType       string                `form:"fee_type"`
+	PercentageFee float64               `form:"percentage_fee"`
+	NominalFee    float64               `form:"nominal_fee"`
+	Type          string                `form:"type" binding:"required"`
+	IsActive      bool                  `form:"is_active"`
+	Logo          *multipart.FileHeader  `form:"logo"`
+	LogoPublicID  string                `form:"logo_public_id"`
+	RemoveLogo    bool                  `form:"remove_logo"`
+}
