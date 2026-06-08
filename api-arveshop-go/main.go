@@ -52,6 +52,7 @@ func main() {
 		&models.CutOffSchedule{},
 		&models.EmailVerified{},
 		&models.PasswordReset{},
+		&models.Banner{},
 	)
 
 	// seeder.SeedServices(config.DB)

@@ -18,6 +18,7 @@ import {
   WalletCards,
   ChartBarBig,
   Users,
+  PanelTop,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -77,6 +78,11 @@ export default function AdminLayout({ children }) {
       label: "Dashboard",
       icon: <Home className="w-5 h-5" />,
       exact: true,
+    },
+    {
+      href: "/admin/banners",
+      label: "Banner",
+      icon: <PanelTop className="w-5 h-5" />,
     },
     {
       href: "/admin/payment-method",

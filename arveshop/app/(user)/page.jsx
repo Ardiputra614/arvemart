@@ -35,6 +35,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
   const [kategori, setKategori] = useState(null);
+  const [banners, setBanners] = useState([]);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -54,25 +55,15 @@ export default function HomePage() {
   const getServiceCacheKey = (kategoriId, page) =>
     `services_${kategoriId}_${page}`;
 
-  const promos = useMemo(
-    () => [
-      {
-        id: 1,
-        image:
-          "https://res.cloudinary.com/dzdjh1mps/image/upload/v1773848093/services/logos/shopeepay_1773848092.jpg",
-        title: "DISKON SPESIAL 50%",
-        description: "Top up Mobile Legends diskon besar!",
-      },
-      {
-        id: 2,
-        image:
-          "https://res.cloudinary.com/dzdjh1mps/image/upload/v1770699148/services/logos/pln_1770699147.jpg",
-        title: "Promo Game",
-        description: "Harga terbaik hari ini",
-      },
-    ],
-    [],
-  );
+  const fetchBanners = async () => {
+    try {
+      const res = await fetch(`${URL}/api/banners`);
+      const json = await res.json();
+      setBanners(json?.data || []);
+    } catch (err) {
+      console.error("Failed to load banners:", err);
+    }
+  };
 
   // =========================
   // FETCH CATEGORIES
@@ -185,6 +176,7 @@ export default function HomePage() {
       }
 
       fetchCategories();
+      fetchBanners();
     }
   }, []);
 
@@ -210,19 +202,23 @@ export default function HomePage() {
   };
 
   // =========================
-  // AUTO SLIDE PROMO
+  // AUTO SLIDE BANNER
   // =========================
   const [activePromo, setActivePromo] = useState(0);
 
   useEffect(() => {
-    if (promos.length <= 1) return;
+    setActivePromo(0);
+  }, [banners.length]);
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
 
     const interval = setInterval(() => {
-      setActivePromo((prev) => (prev + 1) % promos.length);
+      setActivePromo((prev) => (prev + 1) % banners.length);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [promos.length]);
+  }, [banners.length]);
 
   // const promoInitialized = useRef(false);
 
@@ -350,30 +346,48 @@ export default function HomePage() {
       {/* HERO */}
       <div className="bg-[#37353E] p-6">
         <div className="relative h-64 rounded-3xl overflow-hidden">
-          {promos.map((promo, idx) => (
-            <div
-              key={promo.id}
-              className={`absolute inset-0 transition-opacity duration-700 ${
-                idx === activePromo ? "opacity-100 z-10" : "opacity-0 z-0"
-              }`}
-            >
-              {/* IMAGE */}
-              <img
-                src={`${promo.image}?f_auto,q_auto,w_1200`}
-                alt={promo.title}
-                className="w-full h-full object-cover"
-              />
-
-              {/* OVERLAY */}
-              <div className="absolute inset-0 bg-black/40" />
-
-              {/* TEXT */}
-              <div className="absolute bottom-6 left-6 text-white">
-                <h3 className="text-2xl font-bold">{promo.title}</h3>
-                <p>{promo.description}</p>
+          {banners.length > 0 ? (
+            banners.map((banner, idx) => (
+              <div
+                key={banner.id}
+                className={`absolute inset-0 transition-opacity duration-700 ${
+                  idx === activePromo ? "opacity-100 z-10" : "opacity-0 z-0"
+                }`}
+              >
+                {banner.link ? (
+                  <a href={banner.link} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                    <img
+                      src={`${banner.image}?f_auto,q_auto,w_1200`}
+                      alt={banner.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40" />
+                    <div className="absolute bottom-6 left-6 text-white">
+                      <h3 className="text-2xl font-bold">{banner.title}</h3>
+                      {banner.description && <p>{banner.description}</p>}
+                    </div>
+                  </a>
+                ) : (
+                  <>
+                    <img
+                      src={`${banner.image}?f_auto,q_auto,w_1200`}
+                      alt={banner.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40" />
+                    <div className="absolute bottom-6 left-6 text-white">
+                      <h3 className="text-2xl font-bold">{banner.title}</h3>
+                      {banner.description && <p>{banner.description}</p>}
+                    </div>
+                  </>
+                )}
               </div>
+            ))
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-700 text-gray-400">
+              No Banner
             </div>
-          ))}
+          )}
         </div>
       </div>
 

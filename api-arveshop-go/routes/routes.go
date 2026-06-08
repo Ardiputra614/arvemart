@@ -70,6 +70,7 @@ func SetupRoutes(r *gin.Engine) {
 	sc := controllers.NewSaldoController(config.DB)
 	
 	r.GET("/api/profil-aplikasi", controllers.GetProfilAplikasi)
+	r.GET("/api/banners", controllers.GetBannersActive)
 	
 	admin := r.Group("/api/admin")
 	admin.Use(middleware.AuthMiddleware(), middleware.RoleMiddleware("superadmin"))
@@ -100,6 +101,11 @@ func SetupRoutes(r *gin.Engine) {
 		// Upload route
 		admin.POST("/upload", controllers.UploadLogo)
 		
+		admin.GET("/banners", controllers.GetBanners)
+		admin.POST("/banners", controllers.CreateBanner)
+		admin.PUT("/banners/:id", controllers.UpdateBanner)
+		admin.DELETE("/banners/:id", controllers.DeleteBanner)
+
 		admin.GET("/categories", controllers.GetCategories)
 		admin.POST("/categories", controllers.CreateCategory)
 		admin.PUT("/categories/:id", controllers.UpdateCategory)
