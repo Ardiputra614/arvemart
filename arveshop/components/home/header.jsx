@@ -6,9 +6,20 @@ import { Menu, X, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 
-export default function Navbar({ user }) {
+export default function Navbar({ user: serverUser }) {
+  const [user, setUser] = useState(serverUser);
   const [open, setOpen] = useState(false);
   const [dropdown, setDropdown] = useState(false);
+
+  useEffect(() => {
+    if (!serverUser) {
+      api.get("/api/me")
+        .then((res) => {
+          if (res.data.user) setUser(res.data.user);
+        })
+        .catch(() => {});
+    }
+  }, [serverUser]);
 
   // 🔥 SEARCH STATE
   const [query, setQuery] = useState("");
