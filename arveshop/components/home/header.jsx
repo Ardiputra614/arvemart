@@ -12,6 +12,12 @@ export default function Navbar({ user: serverUser }) {
   const [dropdown, setDropdown] = useState(false);
 
   useEffect(() => {
+    if (serverUser) {
+      setUser(serverUser);
+    }
+  }, [serverUser]);
+
+  useEffect(() => {
     if (!serverUser) {
       api.get("/api/me")
         .then((res) => {
@@ -19,7 +25,7 @@ export default function Navbar({ user: serverUser }) {
         })
         .catch(() => {});
     }
-  }, [serverUser]);
+  }, []);
 
   // 🔥 SEARCH STATE
   const [query, setQuery] = useState("");
