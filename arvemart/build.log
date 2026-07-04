@@ -1,0 +1,55 @@
+
+> arveshop@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.15
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 83s
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/19) ...
+null
+null
+null
+   Generating static pages (4/19) 
+null
+null
+   Generating static pages (9/19) 
+   Generating static pages (14/19) 
+ ✓ Generating static pages (19/19)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                    4.01 kB         115 kB
+├ ○ /_not-found                            998 B         103 kB
+├ ƒ /[slug]                               5.9 kB         144 kB
+├ ƒ /[slug]/pascabayar                   5.88 kB         144 kB
+├ ○ /admin/categories                     4.6 kB         154 kB
+├ ○ /admin/dashboard                     99.8 kB         202 kB
+├ ○ /admin/monitor                       5.67 kB         129 kB
+├ ○ /admin/payment-method                7.21 kB         162 kB
+├ ○ /admin/profil-aplikasi               6.29 kB         145 kB
+├ ○ /admin/services                      8.02 kB         163 kB
+├ ○ /admin/topup                         3.84 kB         132 kB
+├ ƒ /admin/topup/[slug]                  3.14 kB         136 kB
+├ ○ /admin/transaction                   4.95 kB         162 kB
+├ ○ /admin/whatsapp                        23 kB         157 kB
+├ ƒ /api/proxy                             124 B         102 kB
+├ ƒ /cek-transaksi                       2.17 kB         107 kB
+├ ƒ /history                             5.66 kB         139 kB
+├ ƒ /history/[orderid]                    188 kB         321 kB
+├ ƒ /login                                  2 kB         128 kB
+└ ƒ /register                            1.95 kB         128 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/493-0d3e793feeb1a7b3.js       45.7 kB
+  ├ chunks/4bd1b696-409494caf8c83275.js  54.2 kB
+  └ other shared chunks (total)          2.06 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

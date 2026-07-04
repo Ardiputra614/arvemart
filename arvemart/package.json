@@ -1,0 +1,46 @@
+{
+  "name": "arveshop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "wa-engine": "node storage/app/wa-engine/server.js",
+    "wa-engine:dev": "nodemon storage/app/wa-engine/server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run wa-engine:dev\"",
+    "postinstall": "cd storage/app/wa-engine && npm install"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "axios": "^1.13.4",
+    "date-fns": "^4.1.0",
+    "html2canvas": "^1.4.1",
+    "jose": "^6.2.2",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.563.0",
+    "next": "^15.5.12",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-toastify": "^11.0.5",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "websocket": "^1.0.35",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5"
+  }
+}
