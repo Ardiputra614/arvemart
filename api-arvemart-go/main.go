@@ -77,6 +77,12 @@ func main() {
 	// 🟢 START CUT OFF MONITOR (khusus untuk transaksi cut off)
 	jobs.StartCutOffMonitor()
 
+	// 🟢 START EXPIRY REMINDER MONITOR (kirim WA 15 menit sebelum expired)
+	jobs.StartExpiryMonitor()
+
+	// 🟢 START SALDO MONITOR (kirim Telegram jika saldo < 200rb)
+	jobs.StartSaldoMonitor()
+
 	// Routes
 	routes.SetupRoutes(r)
 

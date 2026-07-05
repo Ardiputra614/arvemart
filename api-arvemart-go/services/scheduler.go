@@ -229,8 +229,20 @@ func GetDigiflazzPriceList(cmd string) (*DigiflazzPriceListResponse, error) {
 	return result, nil
 }
 
+func gangguanReason(buyerStatus, sellerStatus bool) string {
+	if !buyerStatus && !sellerStatus {
+		return "Buyer dan seller product tidak tersedia"
+	}
+	if !buyerStatus {
+		return "Buyer product tidak tersedia"
+	}
+	if !sellerStatus {
+		return "Seller product tidak tersedia"
+	}
+	return ""
+}
+
 func sendProductDownNotification(
-	adminPhone string,
 	item struct {
 		ProductName string `json:"product_name"`
 		Category    string `json:"category"`
@@ -258,21 +270,7 @@ func sendProductDownNotification(
 	productType string,
 ) {
 
-	if adminPhone == "" {
-		return
-	}
-
-	message := fmt.Sprintf(`⚠️ PRODUK DIGIFLAZZ GANGGUAN
-
-Produk: %s
-SKU: %s
-Type: %s
-
-Buyer Status: %t
-Seller Status: %t
-
-Silakan cek dashboard Digiflazz:
-https://dashboard.digiflazz.com`,
+	Telegram.SendProductGangguanNotification(
 		item.ProductName,
 		item.BuyerSKUCode,
 		productType,
@@ -280,14 +278,7 @@ https://dashboard.digiflazz.com`,
 		item.SellerProductStatus,
 	)
 
-	if err := WAService.SendNotification(adminPhone, message); err != nil {
-
-		log.Printf("❌ Gagal kirim notif WA produk gangguan: %v", err)
-
-	} else {
-
-		log.Printf("✅ Notifikasi WA produk gangguan terkirim: %s", item.BuyerSKUCode)
-	}
+	log.Printf("✅ Notif Telegram produk gangguan terkirim: %s", item.BuyerSKUCode)
 }
 
 func SyncDigiflazzProducts(cmd string) {
@@ -359,7 +350,6 @@ Cek server atau Digiflazz sekarang.`, cmd, err.Error())
 		if !item.BuyerProductStatus || !item.SellerProductStatus {
 
 			sendProductDownNotification(
-				adminPhone,
 				item,
 				productType,
 			)
@@ -402,7 +392,8 @@ Cek server atau Digiflazz sekarang.`, cmd, err.Error())
 				Provider: "digiflazz",
 
 				IsActive: true,
-				Gangguan: !item.BuyerProductStatus || !item.SellerProductStatus,
+				Gangguan:       !item.BuyerProductStatus || !item.SellerProductStatus,
+				GangguanReason: gangguanReason(item.BuyerProductStatus, item.SellerProductStatus),
 				RetryCount:    0,
 				MaxRetry:      3,
 				RetryInterval: 5,
@@ -438,6 +429,7 @@ Cek server atau Digiflazz sekarang.`, cmd, err.Error())
 			"buyer_product_status":  item.BuyerProductStatus,
 			"seller_product_status": item.SellerProductStatus,
 			"gangguan":              !item.BuyerProductStatus || !item.SellerProductStatus,
+			"gangguan_reason":       gangguanReason(item.BuyerProductStatus, item.SellerProductStatus),
 
 			"price":         int64(basePrice),
 			"selling_price": int64(sellingPrice),

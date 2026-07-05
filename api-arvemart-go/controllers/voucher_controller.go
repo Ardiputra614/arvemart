@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetVouchers(c *gin.Context) {
@@ -220,6 +221,48 @@ func ValidateVoucher(c *gin.Context) {
 			"min_purchase":   voucher.MinPurchase,
 		},
 	})
+}
+
+func validateAndUseVoucher(code string, totalAmount float64) (*models.Voucher, float64, error) {
+	var voucher models.Voucher
+	if err := config.DB.Where("code = ?", code).First(&voucher).Error; err != nil {
+		return nil, 0, fmt.Errorf("Kode voucher tidak ditemukan")
+	}
+
+	now := time.Now()
+	if !voucher.IsActive {
+		return nil, 0, fmt.Errorf("Voucher sudah tidak aktif")
+	}
+
+	if now.Before(voucher.ValidFrom) {
+		return nil, 0, fmt.Errorf("Voucher belum berlaku")
+	}
+
+	if now.After(voucher.ValidUntil) {
+		return nil, 0, fmt.Errorf("Voucher sudah kedaluwarsa")
+	}
+
+	if voucher.MaxUses > 0 && voucher.UsedCount >= voucher.MaxUses {
+		return nil, 0, fmt.Errorf("Kuota voucher sudah habis")
+	}
+
+	if totalAmount < voucher.MinPurchase {
+		return nil, 0, fmt.Errorf("Minimal belanja Rp%.0f untuk menggunakan voucher ini", voucher.MinPurchase)
+	}
+
+	var discount float64
+	if voucher.DiscountType == "percentage" {
+		discount = totalAmount * voucher.DiscountValue / 100
+	} else {
+		discount = voucher.DiscountValue
+		if discount > totalAmount {
+			discount = totalAmount
+		}
+	}
+
+	config.DB.Model(&voucher).UpdateColumn("used_count", gorm.Expr("used_count + 1"))
+
+	return &voucher, discount, nil
 }
 
 func formatFloat(f float64) string {

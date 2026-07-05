@@ -301,6 +301,122 @@ _*ARVESHOP - System Alert*_`,
 	return s.SendNotification(adminPhone, message)
 }
 
+// SendPaymentPendingNotification mengirim notifikasi pembayaran pending ke pembeli
+func (s *WANotificationService) SendPaymentPendingNotification(transaction *models.Transaction, paymentURL string, expiryTime *time.Time) error {
+	if transaction == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	if transaction.WaPembeli == "" {
+		return fmt.Errorf("phone number is empty for order %s", transaction.OrderID)
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "https://arvemart.com"
+	}
+	historyURL := fmt.Sprintf("%s/history/%s", frontendURL, transaction.OrderID)
+
+	expiryStr := "24 jam"
+	if expiryTime != nil {
+		expiryStr = expiryTime.Format("02/01/2006 15:04")
+	}
+
+	message := fmt.Sprintf(`⏳ *PEMBAYARAN MENUNGGU*
+	
+Halo *%s*!
+
+Terima kasih, pesanan Anda telah kami terima. Silakan segera lakukan pembayaran.
+
+📋 *Detail Pesanan:*
+┌─────────────────────
+├ Order ID: %s
+├ Produk: %s
+├ Nomor Tujuan: %s
+├ Total: Rp %s
+├ Batas Bayar: %s
+└─────────────────────
+
+💳 *Link Pembayaran:*
+%s
+
+Silakan klik link di atas untuk melakukan pembayaran.
+
+Atau akses langsung:
+%s
+
+Terima kasih telah menggunakan layanan kami! 🙏
+
+_*ARVESHOP - Solusi Digital Terpercaya*_`,
+		transaction.CustomerName,
+		transaction.OrderID,
+		*transaction.ProductName,
+		transaction.CustomerNo,
+		transaction.GrossAmount.StringFixed(0),
+		expiryStr,
+		paymentURL,
+		historyURL,
+	)
+
+	return s.SendNotification(transaction.WaPembeli, message)
+}
+
+// SendPaymentExpiryReminder mengirim notifikasi pengingat pembayaran akan expired
+func (s *WANotificationService) SendPaymentExpiryReminder(transaction *models.Transaction, expiryTime *time.Time) error {
+	if transaction == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	if transaction.WaPembeli == "" {
+		return fmt.Errorf("phone number is empty for order %s", transaction.OrderID)
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "https://arvemart.com"
+	}
+	historyURL := fmt.Sprintf("%s/history/%s", frontendURL, transaction.OrderID)
+
+	expiryStr := "24 jam"
+	if expiryTime != nil {
+		expiryStr = expiryTime.Format("02/01/2006 15:04")
+	}
+
+	message := fmt.Sprintf(`⚠️ *PEMBAYARAN SEGERA KADALUARSA*
+
+Halo *%s*!
+
+Pesanan Anda akan segera kadaluarsa. Silakan selesaikan pembayaran sebelum batas waktu.
+
+📋 *Detail Pesanan:*
+┌─────────────────────
+├ Order ID: %s
+├ Produk: %s
+├ Nomor Tujuan: %s
+├ Total: Rp %s
+├ Batas Bayar: %s
+└─────────────────────
+
+🔗 *Link Pembayaran:*
+%s
+
+Segera lakukan pembayaran agar pesanan tidak otomatis dibatalkan.
+
+Terima kasih telah menggunakan layanan kami! 🙏
+
+_*ARVESHOP - Solusi Digital Terpercaya*_`,
+		transaction.CustomerName,
+		transaction.OrderID,
+		*transaction.ProductName,
+		transaction.CustomerNo,
+		transaction.GrossAmount.StringFixed(0),
+		expiryStr,
+		historyURL,
+	)
+
+	return s.SendNotification(transaction.WaPembeli, message)
+}
+
 // SendDigiflazzProcessing mengirim notifikasi topup sedang diproses ke pembeli
 func (s *WANotificationService) SendDigiflazzProcessing(transaction *models.Transaction) error {
 	if transaction == nil {

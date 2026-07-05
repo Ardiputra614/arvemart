@@ -49,6 +49,7 @@ type Product struct {
 	LastSyncAt       *time.Time `gorm:"column:last_sync_at" json:"last_sync_at"`
 	IsActive         bool       `gorm:"column:is_active;default:true" json:"is_active"`
 	Gangguan         bool       `gorm:"column:gangguan;default:false;index" json:"gangguan"`
+	GangguanReason   string     `gorm:"column:gangguan_reason;type:text" json:"gangguan_reason"`
 	RetryCount       int        `gorm:"column:retry_count;default:0" json:"retry_count"`
 	MaxRetry         int        `gorm:"column:max_retry;default:3" json:"max_retry"`
 	RetryInterval    int        `gorm:"column:retry_interval;default:5" json:"retry_interval"` // menit

@@ -3,6 +3,7 @@ package controllers
 import (
 	"api-arveshop-go/config"
 	"api-arveshop-go/models"
+	"api-arveshop-go/services"
 	"api-arveshop-go/websocket"
 	"bytes"
 	"crypto/hmac"
@@ -88,6 +89,25 @@ func CreateTransactionIpaymu(c *gin.Context) {
 		var profitMargin *float64
 		handleAdminTopup(c, req, sellingPrice, fee, purchasePrice, grossAmount, profit, profitMargin, orderID)
 		return
+	}
+
+	// VALIDASI VOUCHER SEBELUM PANGGIL IPAYMU API
+	if req.VoucherCode != nil && *req.VoucherCode != "" && req.VoucherDiscount > 0 {
+		totalBeforeDiscount := sellingPrice.Add(fee).Add(applicationFee)
+		_, correctDiscount, err := validateAndUseVoucher(*req.VoucherCode, totalBeforeDiscount.InexactFloat64())
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if correctDiscount != req.VoucherDiscount {
+			correctDiscountDec := decimal.NewFromFloat(correctDiscount)
+			voucherDiscount = correctDiscountDec
+			req.VoucherDiscount = correctDiscount
+			grossAmount = sellingPrice.Add(fee).Add(applicationFee).Sub(correctDiscountDec)
+			if grossAmount.LessThan(decimal.Zero) {
+				grossAmount = decimal.Zero
+			}
+		}
 	}
 
 	va := os.Getenv("IPAYMU_VA")
@@ -374,12 +394,24 @@ func CreateTransactionIpaymu(c *gin.Context) {
 		return
 	}
 
-	if req.VoucherCode != nil && *req.VoucherCode != "" && req.VoucherDiscount > 0 {
-		config.DB.Model(&models.Voucher{}).Where("code = ?", *req.VoucherCode).
-			UpdateColumn("used_count", gorm.Expr("used_count + 1"))
-	}
-
 	go websocket.BroadcastOrderStatus(orderID)
+
+	// Kirim WA notifikasi pembayaran pending
+	if transaction.WaPembeli != "" && transaction.PaymentStatus == "pending" {
+		go func(tx models.Transaction) {
+			paymentURL := tx.IpaymuPaymentURL
+			url := ""
+			if paymentURL != nil {
+				url = *paymentURL
+			}
+			err := services.WAService.SendPaymentPendingNotification(&tx, url, tx.IpaymuExpiry)
+			if err != nil {
+				log.Printf("❌ Gagal kirim WA pending untuk %s: %v", tx.OrderID, err)
+			} else {
+				config.DB.Model(&tx).UpdateColumn("reminder_count", gorm.Expr("reminder_count + 1"))
+			}
+		}(transaction)
+	}
 
 	c.JSON(200, gin.H{
 		"payment_url": paymentURL,

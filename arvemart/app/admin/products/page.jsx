@@ -38,6 +38,7 @@ const initialForm = {
 
   is_active: true,
   gangguan: false,
+  gangguan_reason: "",
 
   retry_count: 0,
   max_retry: 3,
@@ -191,6 +192,7 @@ export default function ProductPage() {
 
       is_active: item.is_active ?? true,
       gangguan: item.gangguan ?? false,
+      gangguan_reason: item.gangguan_reason || "",
 
       retry_count: item.retry_count || 0,
 
@@ -443,6 +445,11 @@ export default function ProductPage() {
                         >
                           {item.gangguan ? "Gangguan" : "Normal"}
                         </span>
+                        {item.gangguan && item.gangguan_reason && (
+                          <span className="text-xs text-gray-500 block mt-1">
+                            {item.gangguan_reason}
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -683,6 +690,26 @@ export default function ProductPage() {
                     setForm({
                       ...form,
                       desc: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              {/* GANGGUAN REASON */}
+              <div className="col-span-1 md:col-span-2 xl:col-span-3 flex flex-col gap-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Alasan Gangguan
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Isi alasan gangguan (contoh: Seller product tidak tersedia)"
+                  className="border p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
+                  value={form.gangguan_reason}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      gangguan_reason: e.target.value,
                     })
                   }
                 />

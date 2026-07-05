@@ -1,8 +1,7 @@
 module.exports = {
   apps: [{
     name: 'arvemart',
-    script: 'node_modules/.bin/next',
-    args: 'start',
+    script: '.next/standalone/server.js',
     cwd: '/www/wwwroot/arvemart',
     instances: 1,
     exec_mode: 'fork',

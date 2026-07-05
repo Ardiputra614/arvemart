@@ -21,6 +21,7 @@ export default function AdminTopupDetail() {
   const [accountData, setAccountData] = useState({});
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [customerName, setCustomerName] = useState("");
+  const [customerWa, setCustomerWa] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -126,7 +127,7 @@ export default function AdminTopupDetail() {
   };
 
   const handleRemoveVoucher = () => {
-    // setVoucherCode("");
+    setVoucherCode("");
     setVoucherData(null);
     setVoucherDiscount(0);
   };
@@ -161,6 +162,7 @@ export default function AdminTopupDetail() {
         payment_type: "cash",
         customer_no: customerNo,
         customer_name: customerName,
+        wa_pembeli: customerWa,
         customer_note: customerNote,
         customer_no_format: service?.customer_no_format,
         category_id: service?.category?.id,
@@ -259,6 +261,17 @@ export default function AdminTopupDetail() {
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                   />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">No. WhatsApp</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="08xxxxxxxxxx (untuk notifikasi)"
+                    value={customerWa}
+                    onChange={(e) => setCustomerWa(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Nomor WA untuk menerima notifikasi transaksi berhasil</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Catatan (opsional)</label>

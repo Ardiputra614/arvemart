@@ -1277,8 +1277,8 @@ func HandleDigiflazzWebhook(c *gin.Context) {
 		go sendCustomerSuccessNotification(transaction, data.SN)
 
 	case "03": // PENDING - tunggu callback
-		digiflazzStatus = "pending" // ⏳ Status Digiflazz pending
-		paymentStatus = "pending"   // Customer lihat PENDING
+		digiflazzStatus = "pending"   // ⏳ Status Digiflazz pending
+		paymentStatus = "settlement"  // Customer tetap SETTLEMENT
 		log.Printf("⏳ Transaksi %s pending (RC: 03)", orderID)
 		// TIDAK KIRIM NOTIFIKASI
 
@@ -1290,6 +1290,10 @@ func HandleDigiflazzWebhook(c *gin.Context) {
 
 		// ⚠️ ERROR - Kirim notifikasi DETAIL ke ADMIN
 		go sendAdminErrorNotification(transaction, rcCode, data.Message)
+
+		// KIRIM NOTIFIKASI KE TELEGRAM
+		go services.Telegram.SendOrderFailedNotification(orderID,
+			fmt.Sprintf("Webhook RC %s: %s", rcCode, data.Message))
 	}
 
 	// Siapkan updates

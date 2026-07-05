@@ -118,6 +118,9 @@ type Transaction struct {
     VoucherCode     *string `gorm:"column:voucher_code;size:50" json:"voucher_code"`
     VoucherDiscount float64 `gorm:"column:voucher_discount;default:0" json:"voucher_discount"`
 
+    // Reminder
+    ReminderCount int `gorm:"column:reminder_count;default:0" json:"reminder_count"`
+
     // Security
     Signature        *string `gorm:"column:signature" json:"signature"`
     CallbackVerified bool    `gorm:"column:callback_verified;default:false" json:"callback_verified"`

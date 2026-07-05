@@ -3,11 +3,13 @@ package controllers
 import (
 	"api-arveshop-go/config"
 	"api-arveshop-go/models"
+	"api-arveshop-go/services"
 	"api-arveshop-go/websocket"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"net/http"
@@ -507,6 +509,7 @@ func CreateTransactionMidtrans(c *gin.Context) {
     Fee:               fee,
     MerchantFee:       fee,
     AdminFee:          decimal.NewFromInt(0),
+    ApplicationFee:    applicationFee,
 
     PaymentStatus:     "pending",
     DigiflazzStatus:   stringPtr("pending"),
@@ -533,6 +536,18 @@ func CreateTransactionMidtrans(c *gin.Context) {
     if err := config.DB.Create(&transaction).Error; err != nil {
         c.JSON(500, gin.H{"error": err.Error()})
         return
+    }
+
+    // Kirim WA notifikasi pembayaran pending
+    if transaction.WaPembeli != "" && transaction.PaymentStatus == "pending" {
+        go func(tx models.Transaction) {
+            err := services.WAService.SendPaymentPendingNotification(&tx, redirectURL, tx.MidtransExpiry)
+            if err != nil {
+                log.Printf("❌ Gagal kirim WA pending untuk %s: %v", tx.OrderID, err)
+            } else {
+                config.DB.Model(&tx).UpdateColumn("reminder_count", gorm.Expr("reminder_count + 1"))
+            }
+        }(transaction)
     }
 
     // ===============================
@@ -604,6 +619,19 @@ func mapPaymentMethod(method string) string {
 // // =============================================
 func handleAdminTopup(c *gin.Context, req CreateTransactionRequest, sellingPrice, fee, purchasePrice, grossAmount, profit decimal.Decimal, profitMargin *float64, orderID string) {
     
+    // VALIDASI VOUCHER SEBELUM TRANSAKSI
+    if req.VoucherCode != nil && *req.VoucherCode != "" && req.VoucherDiscount > 0 {
+        totalBeforeDiscount := sellingPrice.Add(fee).Add(decimal.NewFromFloat(req.ApplicationFee))
+        _, correctDiscount, err := validateAndUseVoucher(*req.VoucherCode, totalBeforeDiscount.InexactFloat64())
+        if err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+        if correctDiscount != req.VoucherDiscount {
+            req.VoucherDiscount = correctDiscount
+        }
+    }
+    
     // Admin topup langsung sukses
     paymentStatus := "settlement"
     statusMessage := "Pembayaran cash admin"
@@ -625,11 +653,6 @@ func handleAdminTopup(c *gin.Context, req CreateTransactionRequest, sellingPrice
     if err := config.DB.Create(&transaction).Error; err != nil {
         c.JSON(500, gin.H{"error": "Failed save transaction: " + err.Error()})
         return
-    }
-
-    if req.VoucherCode != nil && *req.VoucherCode != "" && req.VoucherDiscount > 0 {
-        config.DB.Model(&models.Voucher{}).Where("code = ?", *req.VoucherCode).
-            UpdateColumn("used_count", gorm.Expr("used_count + 1"))
     }
 
     go websocket.BroadcastOrderStatus(orderID)

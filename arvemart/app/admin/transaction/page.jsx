@@ -763,6 +763,28 @@ export default function TransactionPage() {
                               {selectedTransaction.customer_no}
                             </span>
 
+                            {selectedTransaction.customer_name && (
+                              <>
+                                <span className="text-gray-500">
+                                  Nama Pelanggan:
+                                </span>
+                                <span className="font-medium">
+                                  {selectedTransaction.customer_name}
+                                </span>
+                              </>
+                            )}
+
+                            {selectedTransaction.provider_trx_id && (
+                              <>
+                                <span className="text-gray-500">
+                                  Provider Trx ID:
+                                </span>
+                                <span className="font-medium">
+                                  {selectedTransaction.provider_trx_id}
+                                </span>
+                              </>
+                            )}
+
                             <span className="text-gray-500">WA Pembeli:</span>
                             <span className="font-medium">
                               {selectedTransaction.wa_pembeli}
@@ -799,12 +821,51 @@ export default function TransactionPage() {
                               )}
                             </span>
 
-                            <span className="text-gray-500">Fee:</span>
+                            <span className="text-gray-500">Fee (Merchant):</span>
                             <span className="font-medium text-orange-600">
                               {formatCurrency(
                                 selectedTransaction.merchant_fee || 0,
                               )}
                             </span>
+
+                            {selectedTransaction.application_fee > 0 && (
+                              <>
+                                <span className="text-gray-500">
+                                  Biaya Layanan:
+                                </span>
+                                <span className="font-medium text-purple-600">
+                                  {formatCurrency(
+                                    selectedTransaction.application_fee || 0,
+                                  )}
+                                </span>
+                              </>
+                            )}
+
+                            {selectedTransaction.profit != null && (
+                              <>
+                                <span className="text-gray-500">
+                                  Profit:
+                                </span>
+                                <span className="font-medium text-emerald-600">
+                                  {formatCurrency(
+                                    selectedTransaction.profit || 0,
+                                  )}
+                                </span>
+                              </>
+                            )}
+
+                            {selectedTransaction.voucher_discount > 0 && (
+                              <>
+                                <span className="text-gray-500">
+                                  Diskon Voucher:
+                                </span>
+                                <span className="font-medium text-red-600">
+                                  -{formatCurrency(
+                                    selectedTransaction.voucher_discount || 0,
+                                  )}
+                                </span>
+                              </>
+                            )}
 
                             <span className="text-gray-500">Payment Type:</span>
                             <span className="font-medium">
@@ -983,6 +1044,33 @@ export default function TransactionPage() {
                             )}
                           </div>
                         </div>
+
+                        {/* Digiflazz Response */}
+                        {selectedTransaction.digiflazz_response && (
+                          <div className="space-y-4">
+                            <h3 className="font-semibold text-gray-900 border-b pb-2">
+                              Response Digiflazz
+                            </h3>
+                            <details className="text-sm">
+                              <summary className="text-blue-600 cursor-pointer hover:text-blue-800 font-medium">
+                                Lihat Response JSON
+                              </summary>
+                              <pre className="mt-2 p-3 bg-gray-50 rounded-lg border text-xs overflow-x-auto max-h-96 whitespace-pre-wrap font-mono">
+                                {(() => {
+                                  try {
+                                    const parsed =
+                                      typeof selectedTransaction.digiflazz_response === "string"
+                                        ? JSON.parse(selectedTransaction.digiflazz_response)
+                                        : selectedTransaction.digiflazz_response;
+                                    return JSON.stringify(parsed, null, 2);
+                                  } catch {
+                                    return selectedTransaction.digiflazz_response;
+                                  }
+                                })()}
+                              </pre>
+                            </details>
+                          </div>
+                        )}
 
                         {/* Timestamps */}
                         <div className="space-y-4">

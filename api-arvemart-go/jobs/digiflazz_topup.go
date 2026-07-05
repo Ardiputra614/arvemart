@@ -271,7 +271,7 @@ func (j *DigiflazzTopupJob) handlePending(order *models.Transaction, message, rc
 	
 	updates := map[string]any{
 		"digiflazz_status": &status,
-		"payment_status":   "pending", // ⏳ Customer melihat PENDING
+		// "payment_status" TIDAK DISENTUH! Tetap settlement
 		"status_message":   &message,
 		"last_error_code":  &rc,
 		"updated_at":       time.Now(),
@@ -323,6 +323,9 @@ func (j *DigiflazzTopupJob) handleFailed(ctx context.Context, order *models.Tran
         
         // KIRIM NOTIFIKASI GAGAL KE ADMIN
         j.sendAdminFailureNotification(order, rc, message)
+        
+        // KIRIM NOTIFIKASI KE TELEGRAM
+        go services.Telegram.SendOrderFailedNotification(order.OrderID, fmt.Sprintf("RC %s: %s", rc, message))
     }
     return err
 }
@@ -391,6 +394,9 @@ func (j *DigiflazzTopupJob) handleUnknown(order *models.Transaction, message, rc
     
     // KIRIM NOTIFIKASI KE ADMIN
     j.sendAdminFailureNotification(order, rc, message)
+    
+    // KIRIM NOTIFIKASI KE TELEGRAM
+    go services.Telegram.SendOrderFailedNotification(order.OrderID, fmt.Sprintf("RC %s (tidak dikenal): %s", rc, message))
 
     return err
 }
@@ -432,6 +438,10 @@ func (j *DigiflazzTopupJob) handleError(ctx context.Context, order *models.Trans
         if order.RetryCount+1 >= j.maxRetries {
             j.sendAdminFailureNotification(order, retryErr.Code, 
                 fmt.Sprintf("Max retries exceeded: %s", retryErr.Message))
+            
+            // KIRIM NOTIFIKASI KE TELEGRAM
+            go services.Telegram.SendOrderFailedNotification(order.OrderID, 
+                fmt.Sprintf("Max retries exceeded [%s]: %s", retryErr.Code, retryErr.Message))
         }
 
         return retryErr
@@ -456,6 +466,10 @@ func (j *DigiflazzTopupJob) handleError(ctx context.Context, order *models.Trans
 
 	// Kirim notifikasi untuk permanent error ke admin
 	j.sendAdminFailureNotification(order, "PERMANENT", err.Error())
+	
+	// KIRIM NOTIFIKASI KE TELEGRAM
+	go services.Telegram.SendOrderFailedNotification(order.OrderID, 
+	    fmt.Sprintf("Permanent error: %s", err.Error()))
 
 	return err
 }

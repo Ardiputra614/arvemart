@@ -4,6 +4,7 @@ package jobs
 import (
 	"api-arveshop-go/config"
 	"api-arveshop-go/models"
+	"api-arveshop-go/services"
 	"api-arveshop-go/websocket"
 	"context"
 	"encoding/json"
@@ -179,6 +180,10 @@ func handlePermanentFailure(transaction *models.Transaction, err error) error {
 	
 	// Broadcast failure
 	go websocket.BroadcastOrderStatus(transaction.OrderID)
+	
+	// KIRIM NOTIFIKASI KE TELEGRAM
+	services.Telegram.SendOrderFailedNotification(transaction.OrderID, 
+	    fmt.Sprintf("Permanent failure: %s", err.Error()))
 	
 	return err
 }
