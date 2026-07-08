@@ -1,0 +1,76 @@
+server {
+    listen 80;
+    server_name arvemart.com www.arvemart.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name arvemart.com www.arvemart.com;
+
+    ssl_certificate     /www/server/panel/vhost/cert/arvemart.com/fullchain.pem;
+    ssl_certificate_key /www/server/panel/vhost/cert/arvemart.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    access_log  /www/wwwlogs/arvemart.com.log;
+    error_log   /www/wwwlogs/arvemart.com.error.log;
+
+    location ~ /.well-known {
+        allow all;
+    }
+
+    # ===== HTML & halaman utama: SELALU FRESH, JANGAN DI-CACHE =====
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection 'upgrade';
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        
+        add_header X-Deployment-Id $time_iso8601 always;
+    }
+
+    # ===== WA API proxy =====
+    location /wa-api/ {
+        rewrite ^/wa-api/(.*)$ /api/$1 break;
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # ===== Socket.io =====
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:4000/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    # ===== Next.js static assets: AMAN di-cache lama (hash berubah tiap build) =====
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # ===== Next.js internal lain (image optimization, dll) =====
+    location /_next/ {
+        proxy_pass http://127.0.0.1:3000;
+        access_log off;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+}

@@ -194,7 +194,6 @@ func HandleMidtransWebhook(c *gin.Context) {
 // 		c.JSON(http.StatusBadRequest, gin.H{"error": "Amount mismatch"})
 // 		return
 // 	}
-	
 
 // 	// =============================
 // 	// MAP STATUS DUITKU → INTERNAL
@@ -426,13 +425,13 @@ func getRefID(trx models.Transaction) string {
 // 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
 // 		return
 // 	}
-	
+
 // 	// Restore body untuk dibaca lagi jika perlu
 // 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	
+
 // 	// Log untuk debugging
 // 	log.Printf("Midtrans Webhook received: %s", string(bodyBytes))
-	
+
 // 	// Parse JSON
 // 	var notification MidtransNotification
 // 	if err := json.Unmarshal(bodyBytes, &notification); err != nil {
@@ -440,14 +439,14 @@ func getRefID(trx models.Transaction) string {
 // 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 // 		return
 // 	}
-	
+
 // 	// Validasi signature key (keamanan)
 // 	if !validateSignature(notification) {
 // 		log.Printf("Invalid signature key for order: %s", notification.OrderID)
 // 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid signature"})
 // 		return
 // 	}
-	
+
 // 	// Cari transaksi berdasarkan OrderID
 // 	var transaction models.Transaction
 // 	if err := config.DB.Where("order_id = ?", notification.OrderID).First(&transaction).Error; err != nil {
@@ -455,7 +454,7 @@ func getRefID(trx models.Transaction) string {
 // 		c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
 // 		return
 // 	}
-	
+
 // 	// Update transaksi berdasarkan notifikasi
 // 	newStatus, err := updateTransactionFromWebhook(&transaction, notification, bodyBytes)
 // 	if err != nil {
@@ -463,20 +462,20 @@ func getRefID(trx models.Transaction) string {
 // 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update transaction"})
 // 		return
 // 	}
-	
+
 // 	// AMBIL DATA TERBARU setelah update
 // 	var updatedTransaction models.Transaction
 // 	config.DB.Where("order_id = ?", notification.OrderID).First(&updatedTransaction)
-	
+
 // 	// BROADCAST VIA WEBSOCKET dengan data lengkap
 // 	log.Printf("📢 Broadcasting settlement for order %s via WebSocket", notification.OrderID)
 // 	websocket.BroadcastOrderStatusWithData(notification.OrderID, updatedTransaction)
-	
+
 // 	// Trigger Digiflazz jika settlement
 // 	if notification.TransactionStatus == "settlement" || notification.TransactionStatus == "capture" {
 // 		go triggerDigiflazzProcessing(&updatedTransaction)
 // 	}
-	
+
 // 	// Selalu return 200 OK ke Midtrans
 // 	c.JSON(http.StatusOK, gin.H{
 // 		"status":  newStatus,
@@ -1196,21 +1195,23 @@ func HandleIPaymuCallback(c *gin.Context) {
 }
 
 // Struktur yang sesuai dengan payload Digiflazz
+type DigiflazzWebhookData struct {
+	RefID          string `json:"ref_id"` // INI AKAN BERISI ORDER_ID KITA
+	TrxID          string `json:"trx_id"`
+	CustomerNo     string `json:"customer_no"`
+	BuyerSkuCode   string `json:"buyer_sku_code"`
+	Message        string `json:"message"`
+	Status         string `json:"status"`
+	RC             string `json:"rc"`
+	BuyerLastSaldo int    `json:"buyer_last_saldo"`
+	SN             string `json:"sn"`
+	Price          int    `json:"price"`
+	Tele           string `json:"tele"`
+	Wa             string `json:"wa"`
+}
+
 type DigiflazzWebhookPayload struct {
-	Data struct {
-		RefID          string `json:"ref_id"` // INI AKAN BERISI ORDER_ID KITA
-		TrxID          string `json:"trx_id"`
-		CustomerNo     string `json:"customer_no"`
-		BuyerSkuCode   string `json:"buyer_sku_code"`
-		Message        string `json:"message"`
-		Status         string `json:"status"`
-		RC             string `json:"rc"`
-		BuyerLastSaldo int    `json:"buyer_last_saldo"`
-		SN             string `json:"sn"`
-		Price          int    `json:"price"`
-		Tele           string `json:"tele"`
-		Wa             string `json:"wa"`
-	} `json:"data"`
+	Data DigiflazzWebhookData `json:"data"`
 }
 
 // HandleDigiflazzWebhook menangani webhook dari Digiflazz
@@ -1238,62 +1239,153 @@ func HandleDigiflazzWebhook(c *gin.Context) {
 		return
 	}
 
-	// AMBIL ORDER_ID DARI REF_ID
 	data := payload.Data
-	orderID := data.RefID
+	trxID := data.TrxID
+	refID := data.RefID
 
-	if orderID == "" {
-		log.Printf("❌ RefID (OrderID) kosong dalam webhook")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "RefID is empty"})
+	if trxID == "" && refID == "" {
+		log.Printf("❌ TrxID dan RefID kosong dalam webhook")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "TrxID and RefID are empty"})
 		return
 	}
 
-	log.Printf("📦 Processing webhook for order: %s, status: %s, rc: %s",
-		orderID, data.Status, data.RC)
+	// Balas 200 KE DIGIFLAZZ SEGERA. Pencarian transaksi (yang mungkin
+	// perlu retry+delay karena race condition, lihat processDigiflazzWebhookData)
+	// dan seluruh proses selanjutnya dilakukan di background, supaya
+	// koneksi webhook Digiflazz tidak nunggu lama / timeout di sisi mereka
+	// yang bisa memicu mereka mengirim ulang webhook yang sama.
+	go processDigiflazzWebhookData(data)
 
-	// Cari transaksi berdasarkan OrderID
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "accepted",
+		"message": "Webhook diterima, sedang diproses",
+	})
+}
+
+// processDigiflazzWebhookData - proses lookup transaksi (dengan retry untuk
+// menghindari race condition), update status, broadcast, dan notifikasi.
+// Dijalankan di background (goroutine) dipanggil dari HandleDigiflazzWebhook.
+func processDigiflazzWebhookData(data DigiflazzWebhookData) {
+	trxID := data.TrxID // trx_id dari Digiflazz -> dicocokkan ke kolom transaction_id
+	refID := data.RefID // ref_id -> dicocokkan ke JSON digiflazz_request, lalu fallback order_id
+
+	log.Printf("📦 Processing webhook - trx_id: %s, ref_id: %s, status: %s, rc: %s",
+		trxID, refID, data.Status, data.RC)
+
+	// Cari transaksi.
+	// PRIORITAS: transaction_id (trx_id final) -> digiflazz_request.ref_id (ref_id
+	// attempt yang MEMANG mengirim ref_id tsb ke Digiflazz) -> order_id (fallback lama).
+	//
+	// RETRY DENGAN DELAY: Digiflazz kadang mengirim webhook HAMPIR
+	// BERSAMAAN dengan response sinkron dari API request (kadang malah
+	// lebih dulu), sehingga ada race condition dimana saat webhook masuk,
+	// kolom transaction_id/digiflazz_request di DB BELUM sempat ter-update
+	// oleh proses pengiriman request itu sendiri. Untuk menghindari
+	// kehilangan update status karena race condition ini, lakukan
+	// beberapa kali percobaan dengan jeda singkat sebelum menyerah.
+	// Ini AMAN dilakukan di sini karena sudah jalan di background/goroutine,
+	// tidak lagi menahan koneksi HTTP webhook dari Digiflazz.
 	var transaction models.Transaction
-	if err := config.DB.Where("order_id = ?", orderID).First(&transaction).Error; err != nil {
-		log.Printf("❌ Transaction not found for order_id: %s", orderID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
+	found := false
+
+	findTransaction := func() bool {
+		// 1. transaction_id = trx_id final dari Digiflazz (paling akurat,
+		//    biasanya baru terisi SETELAH transaksi benar-benar sukses)
+		if trxID != "" {
+			if err := config.DB.Where("transaction_id = ?", trxID).First(&transaction).Error; err == nil {
+				log.Printf("✅ Transaksi ditemukan via transaction_id=%s (order_id=%s)", trxID, transaction.OrderID)
+				return true
+			}
+		}
+		if refID != "" {
+			// 2. Cocokkan ref_id ke dalam JSON digiflazz_request (raw request
+			//    yang dikirim ke Digiflazz, berisi sign/ref_id/username/
+			//    customer_no/buyer_sku_code). Dipakai karena ref_id BERUBAH
+			//    tiap kali ada retry, jadi harus dicocokkan ke request attempt
+			//    yang MEMANG mengirim ref_id tsb - bukan cuma kolom "terakhir".
+			//    MySQL/MariaDB JSON operator: ->> untuk unquote hasil extract.
+			if err := config.DB.
+				Where("digiflazz_request->>'$.ref_id' = ?", refID).
+				First(&transaction).Error; err == nil {
+				log.Printf("✅ Transaksi ditemukan via digiflazz_request JSON ref_id=%s (order_id=%s)", refID, transaction.OrderID)
+				return true
+			}
+			// 3. Fallback lama: ref_id == order_id (kalau attempt pertama
+			//    memang belum pakai ref_id unik/berbeda dari order_id)
+			if err := config.DB.Where("order_id = ?", refID).First(&transaction).Error; err == nil {
+				log.Printf("✅ Transaksi ditemukan via fallback order_id=%s", refID)
+				return true
+			}
+		}
+		return false
+	}
+
+	retryDelays := []time.Duration{0, 1 * time.Second, 2 * time.Second, 3 * time.Second, 5 * time.Second}
+	for i, delay := range retryDelays {
+		if delay > 0 {
+			log.Printf("⏳ Transaksi belum ditemukan, retry ke-%d setelah jeda %s (kemungkinan race condition)", i, delay)
+			time.Sleep(delay)
+		}
+		if findTransaction() {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		log.Printf("❌ Transaction not found setelah semua retry (tried transaction_id=%s, digiflazz_request.ref_id=%s, order_id=%s). "+
+			"Webhook payload HILANG dan perlu direkonsiliasi manual: %+v", trxID, refID, refID, data)
 		return
 	}
+
+	// Gunakan order_id ASLI dari record yang ditemukan untuk seluruh proses
+	// selanjutnya (log, broadcast, notifikasi), bukan ref_id dari payload
+	// yang bisa saja berbeda/berubah-ubah.
+	orderID := transaction.OrderID
 
 	// CEK RC CODE
 	rcCode := data.RC
-	log.Printf("🔍 RC Code received: %s", rcCode)
+	log.Printf("🔍 RC Code received: %s (%s)", rcCode, getRCDescription(rcCode))
 
 	// Tentukan status berdasarkan RC Code
+	// Referensi resmi (Dokumentasi Teknis Digiflazz - Response Code):
+	//   00       = Sukses
+	//   01, 02   = Gagal (transaksi tetap terbentuk di sisi Digiflazz)
+	//   03       = Pending (masih diproses, tunggu callback selanjutnya)
+	//   99       = Pending (DF Router Issue, bukan kegagalan final)
+	//   40-88    = Gagal (berbagai alasan: payload/signature/saldo/produk/dll)
 	var digiflazzStatus string
 	var paymentStatus string
 
 	switch rcCode {
 	case "00": // SUCCESS
-		digiflazzStatus = "success"   // ✅ Status Digiflazz sukses
+		digiflazzStatus = "success"  // ✅ Status Digiflazz sukses
 		paymentStatus = "settlement" // Customer lihat SETTLEMENT
 		log.Printf("✅ Transaksi %s sukses (RC: 00)", orderID)
 
 		// Kirim notifikasi sukses ke CUSTOMER
 		go sendCustomerSuccessNotification(transaction, data.SN)
 
-	case "03": // PENDING - tunggu callback
-		digiflazzStatus = "pending"   // ⏳ Status Digiflazz pending
-		paymentStatus = "settlement"  // Customer tetap SETTLEMENT
-		log.Printf("⏳ Transaksi %s pending (RC: 03)", orderID)
-		// TIDAK KIRIM NOTIFIKASI
+	case "03", "99": // PENDING - tunggu callback selanjutnya
+		// RC 03 = Transaksi Pending, RC 99 = DF Router Issue (juga Pending
+		// menurut dokumentasi resmi Digiflazz, BUKAN kegagalan)
+		digiflazzStatus = "pending"  // ⏳ Status Digiflazz pending
+		paymentStatus = "settlement" // Customer tetap SETTLEMENT
+		log.Printf("⏳ Transaksi %s pending (RC: %s - %s)", orderID, rcCode, getRCDescription(rcCode))
+		// TIDAK KIRIM NOTIFIKASI - masih menunggu callback final dari Digiflazz
 
-	default: // ERROR (semua RC selain 00 dan 03)
+	default: // GAGAL - semua RC selain 00, 03, dan 99 (lihat tabel Response Code Digiflazz)
 		digiflazzStatus = "pending"  // ⭐ Status Digiflazz tetap PENDING (bukan failed!)
 		paymentStatus = "settlement" // Customer tetap lihat SETTLEMENT
-		log.Printf("⚠️ Transaksi %s error (RC: %s) - status customer SETTLEMENT, digiflazz_status PENDING",
-			orderID, rcCode)
+		log.Printf("⚠️ Transaksi %s gagal (RC: %s - %s) - status customer SETTLEMENT, digiflazz_status PENDING",
+			orderID, rcCode, getRCDescription(rcCode))
 
-		// ⚠️ ERROR - Kirim notifikasi DETAIL ke ADMIN
+		// ⚠️ GAGAL - Kirim notifikasi DETAIL ke ADMIN
 		go sendAdminErrorNotification(transaction, rcCode, data.Message)
 
 		// KIRIM NOTIFIKASI KE TELEGRAM
 		go services.Telegram.SendOrderFailedNotification(orderID,
-			fmt.Sprintf("Webhook RC %s: %s", rcCode, data.Message))
+			fmt.Sprintf("Webhook RC %s (%s): %s", rcCode, getRCDescription(rcCode), data.Message))
 	}
 
 	// Siapkan updates
@@ -1320,7 +1412,6 @@ func HandleDigiflazzWebhook(c *gin.Context) {
 
 	if err := config.DB.Model(&transaction).Updates(updates).Error; err != nil {
 		log.Printf("❌ Error updating transaction: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update transaction"})
 		return
 	}
 
@@ -1332,17 +1423,7 @@ func HandleDigiflazzWebhook(c *gin.Context) {
 	go websocket.BroadcastOrderStatus(orderID)
 	go websocket.BroadcastOrderStatusWithData(orderID, updatedTransaction)
 
-	// Return 200 OK
 	log.Printf("✅ Webhook processing completed for order %s", orderID)
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Webhook received",
-		"data": gin.H{
-			"order_id": orderID,
-			"status":   digiflazzStatus,
-			"rc":       rcCode,
-		},
-	})
 }
 
 // ==================== FUNGSI NOTIFIKASI ====================
@@ -1437,7 +1518,7 @@ func sendAdminErrorNotification(tx models.Transaction, rc, msg string) {
 		productName = *tx.ProductName
 	}
 
-	// Mapping RC code ke deskripsi
+	// Mapping RC code ke deskripsi resmi Digiflazz
 	rcDescription := getRCDescription(rc)
 
 	log.Printf("📱 Mengirim notifikasi ERROR ke admin untuk order %s (RC: %s)",
@@ -1508,64 +1589,61 @@ func safeString(s *string) string {
 }
 
 // Fungsi untuk mendapatkan deskripsi RC code
+// Disesuaikan 1:1 dengan tabel Response Code resmi di Dokumentasi Teknis
+// Digiflazz (Buyer - Prabayar & Pascabayar - Response Code).
 func getRCDescription(rcCode string) string {
 	descriptions := map[string]string{
-		"00": "Sukses",
-		"01": "Server sedang sibuk",
-		"02": "Produk tidak tersedia",
-		"03": "Pending - Sedang diproses",
-		"04": "Nomor tidak valid",
-		"05": "Saldo tidak cukup",
-		"06": "Koneksi terputus",
-		"07": "Timeout",
-		"08": "Transaksi sudah ada",
-		"09": "Format salah",
-		"10": "IP tidak terdaftar",
-		"11": "Signature salah",
-		"12": "Ref ID sudah digunakan",
-		"13": "Operator sedang gangguan",
-		"14": "Nomor dalam masa tenggang",
-		"15": "Nomor tidak aktif",
-		"16": "Produk tidak tersedia untuk operator ini",
-		"17": "Masa aktif tidak tersedia",
-		"18": "Transaksi dalam antrian",
-		"19": "Server error",
-		"20": "Koneksi ke operator gagal",
-		"21": "Harga berubah",
-		"22": "Melebihi batas maksimal",
-		"23": "Di bawah batas minimal",
-		"24": "Sedang masa pemeliharaan",
-		"25": "Produk habis",
-		"26": "Kode produk tidak ditemukan",
-		"27": "Customer number tidak valid",
-		"28": "Sedang proses refund",
-		"29": "Sudah direfund",
-		"30": "Dibatalkan sistem",
-		"31": "Dibatalkan manual",
-		"32": "Double posting",
-		"33": "Inquiri gagal",
-		"34": "Payment gagal",
-		"35": "Settlement gagal",
-		"36": "Tidak ada respon dari server",
-		"37": "Terjadi kesalahan pada server",
-		"38": "Terjadi kesalahan pada database",
-		"39": "Terjadi kesalahan pada koneksi",
-		"40": "Terjadi kesalahan pada jaringan",
-		"41": "Transaksi ditolak",
-		"42": "Transaksi dibatalkan",
-		"43": "Transaksi expired",
-		"44": "Transaksi tidak ditemukan",
-		"45": "IP tidak terdaftar di whitelist",
-		"46": "Merchant tidak aktif",
-		"47": "Produk sedang maintenance",
-		"48": "Melebihi batas harian",
-		"49": "Nomor sedang diblokir",
-		"50": "Sedang jam sibuk",
-		"99": "Unknown error",
+		"00": "Transaksi Sukses",
+		"01": "Timeout",
+		"02": "Transaksi Gagal",
+		"03": "Transaksi Pending",
+		"40": "Payload Error",
+		"41": "Signature tidak valid",
+		"42": "Gagal memproses API Buyer",
+		"43": "SKU tidak ditemukan atau Non-Aktif",
+		"44": "Saldo tidak cukup",
+		"45": "IP Anda tidak kami kenali",
+		"47": "Transaksi sudah terjadi di buyer lain",
+		"49": "Ref ID tidak unik",
+		"50": "Transaksi Tidak Ditemukan",
+		"51": "Nomor Tujuan Diblokir",
+		"52": "Prefix Tidak Sesuai Dengan Operator",
+		"53": "Produk Seller Sedang Tidak Tersedia",
+		"54": "Nomor Tujuan Salah",
+		"55": "Produk Sedang Gangguan",
+		"56": "Limit saldo seller (Deprecated)",
+		"57": "Jumlah Digit Kurang Atau Lebih",
+		"58": "Sedang Cut Off",
+		"59": "Tujuan di Luar Wilayah/Cluster",
+		"60": "Tagihan belum tersedia",
+		"61": "Belum pernah melakukan deposit",
+		"62": "Seller sedang mengalami gangguan",
+		"63": "Tidak support transaksi multi",
+		"64": "Tarik tiket gagal, coba nominal lain atau hubungi admin",
+		"65": "Limit transaksi multi (Deprecated)",
+		"66": "Cut Off (Perbaikan Sistem Seller)",
+		"67": "Seller belum ter-verifikasi",
+		"68": "Stok habis",
+		"69": "Harga seller lebih besar dari ketentuan harga Buyer",
+		"70": "Timeout Dari Biller",
+		"71": "Produk Sedang Tidak Stabil",
+		"72": "Lakukan Unreg Paket Dahulu",
+		"73": "Kwh Melebihi Batas",
+		"74": "Transaksi Refund",
+		"80": "Akun Anda telah diblokir oleh Seller",
+		"81": "Seller ini telah diblokir oleh Anda",
+		"82": "Akun Anda belum ter-verifikasi",
+		"83": "Anda telah mencapai limitasi pengecekan pricelist, silahkan coba beberapa saat lagi",
+		"84": "Nominal tidak valid",
+		"85": "Anda telah mencapai limitasi transaksi, silahkan coba 1 menit lagi",
+		"86": "Anda telah mencapai limitasi pengecekan nomor PLN, silahkan coba beberapa saat lagi",
+		"87": "Transaksi E-money wajib kelipatan Rp 1.000",
+		"88": "Akun Anda tidak dapat melakukan aksi ini",
+		"99": "DF Router Issue",
 	}
 
 	if desc, exists := descriptions[rcCode]; exists {
 		return desc
 	}
-	return "Unknown error code"
+	return "Unknown/RC code tidak dikenal (cek dokumentasi Digiflazz terbaru)"
 }

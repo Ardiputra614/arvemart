@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-
 cd /www/wwwroot/arvemart
 
 echo "🛑 Stop app..."
@@ -12,6 +11,10 @@ npm install
 echo "🏗️ Build Next.js..."
 rm -rf .next
 npm run build
+
+echo "📁 Sync static assets ke standalone..."
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
 
 echo "🚀 Start app..."
 pm2 start ecosystem.config.js --env production
