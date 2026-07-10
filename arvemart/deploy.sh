@@ -1,4 +1,10 @@
 #!/bin/bash
+
+# ini supaya cache global aapanel nggak bisa
+sed -i 's/proxy_cache cache_one;/proxy_cache off;/' /www/server/nginx/conf/proxy.conf
+rm -rf /www/server/nginx/proxy_cache_dir
+nginx -t && nginx -s reload
+
 set -e
 cd /www/wwwroot/arvemart
 

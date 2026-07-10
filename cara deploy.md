@@ -1,3 +1,9 @@
+<!-- #Masalahnya proxy_cache cache_one; di /www/server/nginx/conf/proxy.conf — global proxy cache #yang nyimpen semua response HTTP lama, termasuk HTML dari build sebelumnya. -->
+# Sekarang sudah di-fix. Kalau mau deploy ulang ke depannya, jangan lupa clear cache:
+
+rm -rf /www/server/nginx/proxy_cache_dir
+nginx -s reload
+
 # Cara Deploy Arvemart ke VPS (pakai aaPanel)
 
 ```
@@ -207,7 +213,7 @@ location /uploads/ {
 ## 4. Deploy Frontend (Next.js + PM2 Standalone)
 
 ```bash
-cd /www/wwwroot/arvemart/arvemart
+cd /www/wwwroot/arvemart
 
 # Install dependencies
 npm install
@@ -229,7 +235,7 @@ cp .env.production .next/standalone/
 
 ```bash
 # Hapus process lama (kalau ada)
-pm2 delete arvemart 2>/dev/null || true
+pm2 delete arvemart
 
 # Start
 pm2 start .next/standalone/server.js --name arvemart
