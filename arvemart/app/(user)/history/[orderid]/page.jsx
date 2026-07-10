@@ -13,6 +13,8 @@ import {
   ChevronDown,
   Wifi,
   WifiOff,
+  RefreshCw,
+  Send,
 } from "lucide-react";
 import Head from "next/head";
 import { useParams } from "next/navigation";
@@ -75,6 +77,9 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [isExpiring, setIsExpiring] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [showRetryForm, setShowRetryForm] = useState(false);
+  const [newCustomerNo, setNewCustomerNo] = useState("");
+  const [retrying, setRetrying] = useState(false);
 
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
@@ -321,6 +326,46 @@ export default function History() {
     }
   };
 
+  const handleRetryWithNumber = async () => {
+    if (!newCustomerNo.trim()) {
+      toast.error("Masukkan nomor tujuan baru");
+      return;
+    }
+    setRetrying(true);
+    try {
+      await axios.post(
+        `${url}/api/transaction/${order_id}/retry-with-number`,
+        { customer_no: newCustomerNo.trim() },
+        { withCredentials: true },
+      );
+      toast.success("Nomor diperbarui, transaksi akan diproses ulang");
+      setTimeout(() => fetchHistory(true), 2000);
+    } catch (error) {
+      console.error("Error retrying:", error);
+      toast.error(error.response?.data?.error || "Gagal memproses ulang");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleForceRetry = async () => {
+    setRetrying(true);
+    try {
+      await axios.post(
+        `${url}/api/transaction/${order_id}/retry-with-number`,
+        { customer_no: finalData.customer_no || "" },
+        { withCredentials: true },
+      );
+      toast.success("Transaksi akan diproses ulang");
+      setTimeout(() => fetchHistory(true), 2000);
+    } catch (error) {
+      console.error("Error force retry:", error);
+      toast.error(error.response?.data?.error || "Gagal memproses ulang");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const handlePay = () => {
     if (!finalData.ipaymu_payment_url) {
       toast.error("Link pembayaran tidak tersedia");
@@ -360,7 +405,7 @@ export default function History() {
       return "success";
     if (digiflazzStatus === "Gagal" || digiflazzStatus === "failed")
       return "failed";
-    if (digiflazzStatus === "Pending" || digiflazzStatus === "pending")
+    if (digiflazzStatus === "Pending" || digiflazzStatus === "pending" || digiflazzStatus === "processing")
       return "pending";
     return "pending";
   }, []);
@@ -808,7 +853,7 @@ export default function History() {
   const formatDigiflazzStatus = (status) => {
     if (status === "Sukses" || status === "success") return "Berhasil";
     if (status === "Gagal" || status === "failed") return "Gagal";
-    if (status === "Pending" || status === "pending") return "Menunggu";
+    if (status === "Pending" || status === "pending" || status === "processing") return "Menunggu";
     return status || "Menunggu";
   };
 
@@ -910,17 +955,103 @@ export default function History() {
             )}
           </div>
 
-          {/* Token / Serial Number */}
-          {finalData.serial_number &&
-            (digiflazzStatus === "Sukses" || digiflazzStatus === "success") && (
-              <div className="bg-gray-800 rounded-xl p-6 mb-6">
-                <h3 className="font-semibold mb-4 flex items-center">
-                  <CheckCircle className="w-5 h-5 mr-2 text-green-400" />
-                  Detail Produk
-                </h3>
-                <TokenDisplay serialNumber={finalData.serial_number} />
+          {/* Token / Serial Number - always show if exists */}
+          {finalData.serial_number && (
+            <div className="bg-gray-800 rounded-xl p-6 mb-6">
+              <h3 className="font-semibold mb-4 flex items-center">
+                <CheckCircle className={`w-5 h-5 mr-2 ${digiflazzStatus === "Sukses" || digiflazzStatus === "success" ? "text-green-400" : "text-gray-400"}`} />
+                Detail Produk
+              </h3>
+              <TokenDisplay serialNumber={finalData.serial_number} />
+            </div>
+          )}
+
+          {/* Digiflazz Status Detail - show RC and message for non-success */}
+          {(digiflazzStatus !== "Sukses" && digiflazzStatus !== "success" && digiflazzStatus !== "pending") &&
+            (finalData.last_error_code || finalData.status_message) && (
+            <div className="bg-gray-800 rounded-xl p-6 mb-6">
+              <h3 className="font-semibold mb-4 flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2 text-yellow-400" />
+                Status Pengiriman
+              </h3>
+              <div className="space-y-2">
+                {finalData.last_error_code && (
+                  <div className="flex justify-between py-2 border-b border-gray-700">
+                    <span className="text-gray-400">Response Code</span>
+                    <span className="font-mono font-medium text-yellow-400">
+                      {finalData.last_error_code}
+                    </span>
+                  </div>
+                )}
+                {finalData.status_message && (
+                  <div className="flex justify-between py-2 border-b border-gray-700">
+                    <span className="text-gray-400">Pesan</span>
+                    <span className="font-medium text-right max-w-xs break-words">
+                      {finalData.status_message}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
+
+          {/* RC 54 Form - Wrong Number Correction */}
+          {finalData.last_error_code === "54" && (
+            <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-yellow-600">
+              <h3 className="font-semibold mb-2 flex items-center text-yellow-400">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                Nomor Tujuan Salah
+              </h3>
+              <p className="text-sm text-gray-400 mb-4">
+                Nomor tujuan <span className="font-mono text-yellow-300">{finalData.customer_no}</span> tidak valid. Silakan perbaiki nomor tujuan di bawah ini.
+              </p>
+
+              {!showRetryForm ? (
+                <button
+                  onClick={() => setShowRetryForm(true)}
+                  className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm flex items-center transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Perbaiki Nomor Tujuan
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">
+                      Nomor Tujuan Baru
+                    </label>
+                    <input
+                      type="text"
+                      value={newCustomerNo}
+                      onChange={(e) => setNewCustomerNo(e.target.value)}
+                      placeholder="Masukkan nomor tujuan yang benar"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRetryWithNumber}
+                      disabled={retrying}
+                      className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm flex items-center transition-colors"
+                    >
+                      {retrying ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {retrying ? "Memproses..." : "Kirim"}
+                    </button>
+                    <button
+                      onClick={() => setShowRetryForm(false)}
+                      className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pascabayar desc detail */}
           {finalData.digiflazz_response && (
@@ -1195,8 +1326,31 @@ export default function History() {
                   className={`font-semibold ${getDigiflazzStatusColor(digiflazzStatus)}`}
                 >
                   {formatDigiflazzStatus(digiflazzStatus)}
+                  {finalData.last_error_code && !(digiflazzStatus === "Sukses" || digiflazzStatus === "success") && (
+                    <span className="text-xs text-gray-500 ml-1">
+                      (RC: {finalData.last_error_code})
+                    </span>
+                  )}
                 </span>
               </div>
+
+              {/* Force retry button for non-success non-pending digiflazz */}
+              {finalData.last_error_code && !(digiflazzStatus === "Sukses" || digiflazzStatus === "success" || digiflazzStatus === "pending" || digiflazzStatus === "Pending") && finalData.last_error_code !== "54" && (
+                <div className="mt-4">
+                  <button
+                    onClick={handleForceRetry}
+                    disabled={retrying}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 py-2 rounded-lg text-sm flex items-center justify-center transition-colors"
+                  >
+                    {retrying ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    {retrying ? "Memproses..." : "Proses Ulang"}
+                  </button>
+                </div>
+              )}
 
               <div className="flex justify-between py-2">
                 <span className="text-gray-400">Tanggal Transaksi</span>

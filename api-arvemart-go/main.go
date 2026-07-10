@@ -3,6 +3,7 @@ package main
 import (
 	"api-arveshop-go/config"
 	"api-arveshop-go/jobs"
+	"api-arveshop-go/middleware"
 	"api-arveshop-go/models"
 	"api-arveshop-go/routes"
 	"api-arveshop-go/services"
@@ -34,6 +35,9 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Rate limit per-IP middleware (30 requests/min per IP)
+	r.Use(middleware.RateLimit())
 
 	// Database
 	config.ConnectDB()

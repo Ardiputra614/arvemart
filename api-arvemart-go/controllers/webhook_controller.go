@@ -1374,7 +1374,34 @@ func processDigiflazzWebhookData(data DigiflazzWebhookData) {
 		log.Printf("⏳ Transaksi %s pending (RC: %s - %s)", orderID, rcCode, getRCDescription(rcCode))
 		// TIDAK KIRIM NOTIFIKASI - masih menunggu callback final dari Digiflazz
 
-	default: // GAGAL - semua RC selain 00, 03, dan 99 (lihat tabel Response Code Digiflazz)
+	case "54": // NOMOR TUJUAN SALAH - customer bisa ganti nomor
+		digiflazzStatus = "pending"  // Status Digiflazz pending
+		paymentStatus = "settlement" // Customer tetap SETTLEMENT
+		log.Printf("⚠️ Transaksi %s gagal (RC: 54 - %s)", orderID, getRCDescription(rcCode))
+
+		// Kirim notifikasi DETAIL ke ADMIN
+		go sendAdminErrorNotification(transaction, rcCode, data.Message)
+
+		// Kirim notifikasi KE CUSTOMER (friendly) - beri tahu nomor salah
+		go sendCustomerErrorNotification(transaction, rcCode, data.Message)
+
+		// KIRIM NOTIFIKASI KE TELEGRAM
+		go services.Telegram.SendOrderFailedNotification(orderID,
+			fmt.Sprintf("Webhook RC %s (%s): %s", rcCode, getRCDescription(rcCode), data.Message))
+
+	case "58": // SEDANG CUT OFF
+		digiflazzStatus = "pending"  // Status Digiflazz pending
+		paymentStatus = "settlement" // Customer tetap SETTLEMENT
+		log.Printf("⚠️ Transaksi %s cut off (RC: 58 - %s)", orderID, getRCDescription(rcCode))
+
+		// Kirim notifikasi DETAIL ke ADMIN
+		go sendAdminErrorNotification(transaction, rcCode, data.Message)
+
+		// KIRIM NOTIFIKASI KE TELEGRAM
+		go services.Telegram.SendOrderFailedNotification(orderID,
+			fmt.Sprintf("Webhook RC %s (%s): %s", rcCode, getRCDescription(rcCode), data.Message))
+
+	default: // GAGAL - semua RC selain 00, 03, 54, 58, dan 99
 		digiflazzStatus = "pending"  // ⭐ Status Digiflazz tetap PENDING (bukan failed!)
 		paymentStatus = "settlement" // Customer tetap lihat SETTLEMENT
 		log.Printf("⚠️ Transaksi %s gagal (RC: %s - %s) - status customer SETTLEMENT, digiflazz_status PENDING",
@@ -1406,6 +1433,16 @@ func processDigiflazzWebhookData(data DigiflazzWebhookData) {
 		updates["last_error_code"] = &data.RC
 	}
 
+	// Store full webhook payload in digiflazz_callback for frontend display
+	callbackJSON, _ := json.Marshal(data)
+	updates["digiflazz_callback"] = datatypes.JSON(callbackJSON)
+
+	// Update digiflazz_response with webhook data so it matches latest status
+	responseJSON, _ := json.Marshal(map[string]interface{}{
+		"data": data,
+	})
+	updates["digiflazz_response"] = datatypes.JSON(responseJSON)
+
 	// Update ke database
 	log.Printf("💾 Updating database for order %s - payment_status: %s, digiflazz_status: %s",
 		orderID, paymentStatus, digiflazzStatus)
@@ -1427,6 +1464,108 @@ func processDigiflazzWebhookData(data DigiflazzWebhookData) {
 }
 
 // ==================== FUNGSI NOTIFIKASI ====================
+
+// sendCustomerErrorNotification - kirim notifikasi error ke customer (friendly)
+// Digunakan untuk RC 54 (nomor salah) dan error lain yang perlu diketahui customer
+func sendCustomerErrorNotification(tx models.Transaction, rc, msg string) {
+	if tx.WaPembeli == "" {
+		log.Printf("⚠️ WaPembeli kosong untuk order %s, tidak bisa kirim notifikasi error", tx.OrderID)
+		return
+	}
+
+	waService := services.NewWANotificationService()
+
+	customerName := "Pelanggan"
+	if tx.CustomerName != nil && *tx.CustomerName != "" {
+		customerName = *tx.CustomerName
+	}
+
+	productName := "Produk"
+	if tx.ProductName != nil && *tx.ProductName != "" {
+		productName = *tx.ProductName
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = os.Getenv("APP_URL")
+	}
+	historyLink := fmt.Sprintf("%s/history/%s", frontendURL, tx.OrderID)
+
+	rcDescription := getRCDescription(rc)
+
+	message := fmt.Sprintf(`❌ *TRANSAKSI GAGAL*
+
+Halo *%s*,
+
+Maaf, transaksi Anda mengalami kendala:
+
+%s
+
+📋 *Detail Transaksi:*
+┌─────────────────────
+├ Order ID: %s
+├ Produk: %s
+├ Nomor Tujuan: %s
+├ Total: Rp %s
+└─────────────────────
+
+🔍 *Detail Masalah:*
+┌─────────────────────
+├ Kode: %s
+├ Pesan: %s
+└─────────────────────
+
+%s
+
+📜 Lihat detail transaksi:
+%s
+
+Jika perlu bantuan, hubungi kami segera.
+Terima kasih 🙏
+
+_*ARVESHOP - Solusi Digital Terpercaya*_`,
+		customerName,
+		getCustomerFriendlyMessage(rc, rcDescription),
+		tx.OrderID,
+		productName,
+		tx.CustomerNo,
+		tx.GrossAmount.StringFixed(0),
+		rc,
+		msg,
+		getCustomerActionMessage(rc),
+		historyLink,
+	)
+
+	if err := waService.SendNotification(tx.WaPembeli, message); err != nil {
+		log.Printf("❌ Gagal kirim notifikasi error ke customer: %v", err)
+	} else {
+		log.Printf("✅ Notifikasi error terkirim ke customer %s untuk order %s", tx.WaPembeli, tx.OrderID)
+	}
+}
+
+// getCustomerFriendlyMessage - pesan ramah customer berdasarkan RC
+func getCustomerFriendlyMessage(rc, rcDescription string) string {
+	switch rc {
+	case "54":
+		return "Nomor tujuan yang Anda masukkan tidak valid atau salah. Silakan periksa kembali nomor tujuan Anda."
+	case "58":
+		return "Sistem sedang dalam masa pemeliharaan (cut off). Transaksi Anda akan diproses secara otomatis setelah selesai."
+	default:
+		return fmt.Sprintf("Transaksi gagal diproses: %s", rcDescription)
+	}
+}
+
+// getCustomerActionMessage - pesan tindakan untuk customer berdasarkan RC
+func getCustomerActionMessage(rc string) string {
+	switch rc {
+	case "54":
+		return "💡 *Tindakan:* Silakan kunjungi link di bawah untuk memperbaiki nomor tujuan dan coba lagi."
+	case "58":
+		return "💡 *Tindakan:* Tidak perlu melakukan apa-apa, sistem akan memproses ulang secara otomatis."
+	default:
+		return "💡 *Tindakan:* Silakan hubungi customer service untuk bantuan lebih lanjut."
+	}
+}
 
 // sendCustomerSuccessNotification - kirim notifikasi sukses ke customer
 func sendCustomerSuccessNotification(tx models.Transaction, sn string) {
@@ -1586,6 +1725,71 @@ func safeString(s *string) string {
 		return "-"
 	}
 	return *s
+}
+
+// RetryWithNumber - Update customer_no dan trigger ulang Digiflazz
+// Digunakan ketika RC 54 (nomor tujuan salah) - customer ganti nomor
+func RetryWithNumber(c *gin.Context) {
+	orderID := c.Param("order_id")
+
+	var req struct {
+		CustomerNo string `json:"customer_no"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if req.CustomerNo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "customer_no is required"})
+		return
+	}
+
+	// Find transaction
+	var transaction models.Transaction
+	if err := config.DB.Where("order_id = ?", orderID).First(&transaction).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
+		return
+	}
+
+	// Check authorization: if user is authenticated and this is their transaction
+	if userID, exists := c.Get("user_id"); exists {
+		if uid, ok := userID.(uint); ok && transaction.UserID != nil && *transaction.UserID != uid {
+			c.JSON(http.StatusForbidden, gin.H{"message": "Bukan transaksi anda"})
+			return
+		}
+	}
+
+	// Update customer_no and reset retry fields
+	now := time.Now()
+	processing := "processing"
+	statusMsg := "Nomor diperbarui, memproses ulang..."
+	updates := map[string]interface{}{
+		"customer_no":       req.CustomerNo,
+		"digiflazz_status":  &processing,
+		"retry_count":       0,
+		"next_retry_at":     nil,
+		"status_message":    &statusMsg,
+		"updated_at":        now,
+		"digiflazz_sent_at": now,
+	}
+
+	if err := config.DB.Model(&transaction).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update transaction"})
+		return
+	}
+
+	// Refresh transaction
+	config.DB.First(&transaction, transaction.ID)
+
+	// Trigger Digiflazz processing via retry mechanism
+	go jobs.ProcessDigiflazzWithRetry(&transaction)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Nomor tujuan diperbarui, transaksi akan diproses ulang",
+		"data":    transaction,
+	})
 }
 
 // Fungsi untuk mendapatkan deskripsi RC code

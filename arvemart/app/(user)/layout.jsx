@@ -4,15 +4,13 @@ import ChatCustomer from "../../components/home/ChatCustomer";
 
 export default function HomeLayout({ children }) {
   return (
-    <>
+    <div className="bg-[#37353E] min-h-screen w-full">
       <Navbar />
-      <div className="bg-[#37353E] min-h-screen w-full">
-        <div className="container mx-auto">
-          {children}
-        </div>
+      <div className="container mx-auto">
+        {children}
       </div>
       <ChatCustomer />
       <Footer />
-    </>
+    </div>
   );
 }

@@ -60,6 +60,7 @@ func SetupRoutes(r *gin.Engine) {
 
 
 	r.POST("/transaction/:orderid/expire", controllers.ExpireTransaction)
+	r.POST("/api/transaction/:order_id/retry-with-number", middleware.AuthMiddleware(), controllers.RetryWithNumber)
 	r.POST("/api/inquiry-pln", controllers.HandlePLNInquiry)
 	
 	r.GET("/api/history", middleware.AuthMiddleware(), middleware.RoleMiddleware("user"), controllers.GetHistoryCustomer)

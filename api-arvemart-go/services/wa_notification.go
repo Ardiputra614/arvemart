@@ -323,35 +323,29 @@ func (s *WANotificationService) SendPaymentPendingNotification(transaction *mode
 	}
 
 	message := fmt.Sprintf(`⏳ *PEMBAYARAN MENUNGGU*
-	
-Halo *%s*!
 
-Terima kasih, pesanan Anda telah kami terima. Silakan segera lakukan pembayaran.
+Halo kak, terima kasih sudah order di *ARVESHOP*!
 
 📋 *Detail Pesanan:*
 ┌─────────────────────
 ├ Order ID: %s
 ├ Produk: %s
-├ Nomor Tujuan: %s
 ├ Total: Rp %s
-├ Batas Bayar: %s
 └─────────────────────
 
-💳 *Link Pembayaran:*
+💳 *Status: BELUM DIBAYAR*
+
+Silakan selesaikan pembayaran sebelum %s.
+
+🔗 *Link Pembayaran:*
 %s
 
-Silakan klik link di atas untuk melakukan pembayaran.
-
-Atau akses langsung:
+📜 Lihat detail transaksi:
 %s
-
-Terima kasih telah menggunakan layanan kami! 🙏
 
 _*ARVESHOP - Solusi Digital Terpercaya*_`,
-		transaction.CustomerName,
 		transaction.OrderID,
 		*transaction.ProductName,
-		transaction.CustomerNo,
 		transaction.GrossAmount.StringFixed(0),
 		expiryStr,
 		paymentURL,
@@ -359,6 +353,83 @@ _*ARVESHOP - Solusi Digital Terpercaya*_`,
 	)
 
 	return s.SendNotification(transaction.WaPembeli, message)
+}
+
+// SendDigiflazzErrorToCustomer mengirim notifikasi error Digiflazz ke pembeli (friendly)
+func (s *WANotificationService) SendDigiflazzErrorToCustomer(transaction *models.Transaction, rc, message string) error {
+	if transaction == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	if transaction.WaPembeli == "" {
+		return fmt.Errorf("phone number is empty for order %s", transaction.OrderID)
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "https://arvemart.com"
+	}
+	historyURL := fmt.Sprintf("%s/history/%s", frontendURL, transaction.OrderID)
+
+	customerName := "Kak"
+	if transaction.CustomerName != nil && *transaction.CustomerName != "" {
+		customerName = *transaction.CustomerName
+	}
+
+	productName := "Produk"
+	if transaction.ProductName != nil && *transaction.ProductName != "" {
+		productName = *transaction.ProductName
+	}
+
+	var problemMsg, actionMsg string
+	switch rc {
+	case "54":
+		problemMsg = "Nomor tujuan yang Anda masukkan tidak valid."
+		actionMsg = "Silakan kunjungi link di bawah untuk memperbaiki nomor tujuan dan coba lagi."
+	case "58":
+		problemMsg = "Sistem sedang dalam masa pemeliharaan."
+		actionMsg = "Tidak perlu melakukan apa-apa, sistem akan memproses ulang secara otomatis."
+	default:
+		problemMsg = "Transaksi gagal diproses oleh sistem."
+		actionMsg = "Silakan hubungi customer service untuk bantuan lebih lanjut."
+	}
+
+	msg := fmt.Sprintf(`❌ *TRANSAKSI GAGAL*
+
+Halo *%s*,
+
+Maaf, %s
+
+📋 *Detail Pesanan:*
+┌─────────────────────
+├ Order ID: %s
+├ Produk: %s
+├ Nomor Tujuan: %s
+├ Total: Rp %s
+└─────────────────────
+
+🔍 *Pesan Error:* %s
+
+%s
+
+📜 Lihat detail transaksi:
+%s
+
+Jika ada pertanyaan, hubungi kami ya 🙏
+
+_*ARVESHOP - Solusi Digital Terpercaya*_`,
+		customerName,
+		problemMsg,
+		transaction.OrderID,
+		productName,
+		transaction.CustomerNo,
+		transaction.GrossAmount.StringFixed(0),
+		message,
+		actionMsg,
+		historyURL,
+	)
+
+	return s.SendNotification(transaction.WaPembeli, msg)
 }
 
 // SendPaymentExpiryReminder mengirim notifikasi pengingat pembayaran akan expired

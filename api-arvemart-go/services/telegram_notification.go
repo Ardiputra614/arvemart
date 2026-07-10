@@ -95,7 +95,7 @@ Order ID: %s
 Alasan: %s
 
 🔗 <a href="%s/history/%s">Lihat Pesanan</a>
-🔗 <a href="https://dashboard.digiflazz.com">Dashboard Digiflazz</a>
+🔗 <a href="https://member.digiflazz.com">Dashboard Digiflazz</a>
 🔗 <a href="%s/login">Login Arvemart</a>`,
 		orderID, reason,
 		frontendURL, orderID,
@@ -110,7 +110,7 @@ func (t *TelegramService) SendSaldoLowNotification(saldo float64) {
 Sisa saldo: Rp %.0f
 Segera lakukan pengisian saldo.
 
-🔗 <a href="https://dashboard.digiflazz.com">Dashboard Digiflazz</a>`, saldo)
+🔗 <a href="https://member.digiflazz.com">Dashboard Digiflazz</a>`, saldo)
 
 	t.SendToGagal(msg)
 }

@@ -9,6 +9,10 @@ import {
   EyeIcon,
   DollarSignIcon,
   FileTextIcon,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Send,
 } from "lucide-react";
 import { Fragment, useState, useEffect, useCallback } from "react";
 import { Dialog, Transition } from "@headlessui/react";
@@ -54,6 +58,8 @@ export default function TransactionPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const perPage = 10;
+  const [adminNewCustomerNo, setAdminNewCustomerNo] = useState("");
+  const [adminRetrying, setAdminRetrying] = useState(false);
 
   // Fungsi fetch data
   const fetchTransactions = useCallback(async () => {
@@ -970,8 +976,20 @@ export default function TransactionPage() {
                                   <span className="text-gray-500">
                                     Serial Number:
                                   </span>
-                                  <span className="font-medium">
-                                    {selectedTransaction.serial_number}
+                                  <span className="font-medium flex items-center gap-2">
+                                    <span className="font-mono">
+                                      {selectedTransaction.serial_number}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(selectedTransaction.serial_number);
+                                        toast.success("Serial number disalin");
+                                      }}
+                                      className="text-blue-600 hover:text-blue-800"
+                                      title="Salin Serial Number"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
                                   </span>
                                 </>
                               )}
@@ -1042,7 +1060,128 @@ export default function TransactionPage() {
                                 </span>
                               </>
                             )}
+
+                            {/* Serial Number with Copy */}
+                            {selectedTransaction.serial_number && (
+                              <>
+                                <span className="text-gray-500">
+                                  Serial Number:
+                                </span>
+                                <span className="font-medium flex items-center gap-2">
+                                  <span className="font-mono">
+                                    {selectedTransaction.serial_number}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(selectedTransaction.serial_number);
+                                      toast.success("Serial number disalin");
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Salin Serial Number"
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </button>
+                                </span>
+                              </>
+                            )}
                           </div>
+
+                          {/* Link to History */}
+                          <div className="pt-2">
+                            <a
+                              href={`/history/${selectedTransaction.order_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              <ExternalLink className="w-4 h-4 mr-1" />
+                              Lihat di History Customer
+                            </a>
+                          </div>
+
+                          {/* RC 54 Form - Wrong Number Correction */}
+                          {selectedTransaction.last_error_code === "54" && (
+                            <div className="pt-4 border-t border-yellow-200 mt-4">
+                              <h4 className="text-sm font-semibold text-yellow-700 mb-2 flex items-center">
+                                <AlertCircleIcon className="w-4 h-4 mr-1" />
+                                Perbaiki Nomor Tujuan (RC 54)
+                              </h4>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Nomor <strong>{selectedTransaction.customer_no}</strong> tidak valid. Silakan masukkan nomor baru.
+                              </p>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={adminNewCustomerNo}
+                                  onChange={(e) => setAdminNewCustomerNo(e.target.value)}
+                                  placeholder="Nomor baru..."
+                                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <button
+                                  onClick={async () => {
+                                    if (!adminNewCustomerNo.trim()) {
+                                      toast.error("Masukkan nomor tujuan baru");
+                                      return;
+                                    }
+                                    setAdminRetrying(true);
+                                    try {
+                                      await api.post(`${API_URL}/api/transaction/${selectedTransaction.order_id}/retry-with-number`, {
+                                        customer_no: adminNewCustomerNo.trim(),
+                                      });
+                                      toast.success("Nomor diperbarui, transaksi diproses ulang");
+                                      setAdminRetrying(false);
+                                      setTimeout(() => window.location.reload(), 2000);
+                                    } catch (err) {
+                                      toast.error(err.response?.data?.error || "Gagal");
+                                      setAdminRetrying(false);
+                                    }
+                                  }}
+                                  disabled={adminRetrying}
+                                  className="px-3 py-1.5 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 flex items-center"
+                                >
+                                  {adminRetrying ? (
+                                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1" />
+                                  ) : (
+                                    <Send className="w-3.5 h-3.5 mr-1" />
+                                  )}
+                                  {adminRetrying ? "Memproses..." : "Kirim"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Force Retry Button */}
+                          {selectedTransaction.last_error_code && 
+                            selectedTransaction.last_error_code !== "54" &&
+                            selectedTransaction.digiflazz_status !== "success" && (
+                            <div className="pt-2">
+                              <button
+                                onClick={async () => {
+                                  setAdminRetrying(true);
+                                  try {
+                                    await api.post(`${API_URL}/api/transaction/${selectedTransaction.order_id}/retry-with-number`, {
+                                      customer_no: selectedTransaction.customer_no || "",
+                                    });
+                                    toast.success("Transaksi akan diproses ulang");
+                                    setAdminRetrying(false);
+                                    setTimeout(() => window.location.reload(), 2000);
+                                  } catch (err) {
+                                    toast.error(err.response?.data?.error || "Gagal");
+                                    setAdminRetrying(false);
+                                  }
+                                }}
+                                disabled={adminRetrying}
+                                className="inline-flex items-center text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                              >
+                                {adminRetrying ? (
+                                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1" />
+                                ) : (
+                                  <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                                )}
+                                {adminRetrying ? "Memproses..." : "Proses Ulang"}
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Digiflazz Response */}
