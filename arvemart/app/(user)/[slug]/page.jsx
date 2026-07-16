@@ -863,7 +863,7 @@ const GamesTopup = () => {
               <h3 className="text-xl font-bold text-gray-100 mb-4">
                 Keterangan
               </h3>
-              <div className="whitespace-pre-wrap">
+              <div className="whitespace-pre-wrap text-white">
                 {service.how_to_topup || "-"}
               </div>
             </div>
@@ -1145,7 +1145,7 @@ const GamesTopup = () => {
                       <h3 className="text-xl font-bold text-gray-100 mb-4">
                         Keterangan
                       </h3>
-                      <div className="whitespace-pre-wrap">
+                      <div className="whitespace-pre-wrap text-white">
                         {service.how_to_topup || "-"}
                       </div>
                     </div>

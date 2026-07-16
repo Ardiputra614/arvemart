@@ -1761,12 +1761,16 @@ func RetryWithNumber(c *gin.Context) {
 		}
 	}
 
+	// Generate provider_trx_id baru agar tidak duplicate di Digiflazz
+	newProviderID := GenerateProviderTrxID(orderID)
+
 	// Update customer_no and reset retry fields
 	now := time.Now()
 	processing := "processing"
 	statusMsg := "Nomor diperbarui, memproses ulang..."
 	updates := map[string]interface{}{
 		"customer_no":       req.CustomerNo,
+		"provider_trx_id":   newProviderID,
 		"digiflazz_status":  &processing,
 		"retry_count":       0,
 		"next_retry_at":     nil,

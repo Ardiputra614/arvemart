@@ -177,7 +177,7 @@ export default function Navbar({ user: serverUser }) {
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700 cursor-pointer"
                       >
                         <img
-                          src={item.image}
+                          src={item.logo}
                           alt={item.name}
                           className="w-10 h-10 rounded object-cover"
                         />
@@ -337,7 +337,7 @@ export default function Navbar({ user: serverUser }) {
                   className="flex items-center gap-3 px-4 py-3 border-b border-gray-800"
                 >
                   <img
-                    src={item.image}
+                    src={item.logo}
                     alt={item.name}
                     className="w-12 h-12 rounded object-cover"
                   />

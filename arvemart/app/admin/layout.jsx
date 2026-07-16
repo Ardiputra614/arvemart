@@ -22,6 +22,9 @@ import {
   HelpCircle,
   Package,
   Ticket,
+  BookOpen,
+  Feather,
+  MessageCircle,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -141,6 +144,16 @@ export default function AdminLayout({ children }) {
       href: "/admin/topup",
       label: "Top up",
       icon: <WalletCards className="w-5 h-5" />,
+    },
+    {
+      href: "/admin/blog",
+      label: "Blog",
+      icon: <Feather className="w-5 h-5" />,
+    },
+    {
+      href: "/admin/blog/comments",
+      label: "Komentar",
+      icon: <MessageCircle className="w-5 h-5" />,
     },
     {
       href: "/admin/monitor",
@@ -350,7 +363,7 @@ export default function AdminLayout({ children }) {
         {/* Mobile menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white">
-            <div className="px-4 py-3 space-y-1">
+            <div className="max-h-[70vh] overflow-y-auto overscroll-contain px-4 py-3 space-y-1">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}

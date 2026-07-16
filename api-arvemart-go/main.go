@@ -26,7 +26,7 @@ func main() {
 	// CORS config
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
-			"https://arvemart.com", "https://api.arvemart.com", "https://www.arvemart.com",
+			"https://arvemart.com", "https://api.arvemart.com", "https://www.arvemart.com", "https://blog.arvemart.com",
 			"http://localhost:4000", "http://localhost:3000", "http://10.107.72.172:3000",
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -57,6 +57,13 @@ func main() {
 		&models.Banner{},
 		&models.Faq{},
 		&models.Voucher{},
+		&models.BlogCategory{},
+		&models.BlogArticle{},
+		&models.BlogStory{},
+		&models.BlogStoryPage{},
+		&models.BlogComment{},
+		&models.BlogRating{},
+		&models.BlogView{},
 	)
 
 	// seeder.SeedServices(config.DB)

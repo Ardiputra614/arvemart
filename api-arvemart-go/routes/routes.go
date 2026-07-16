@@ -76,6 +76,18 @@ func SetupRoutes(r *gin.Engine) {
 	r.GET("/api/faq", controllers.GetFaqs)
 	r.GET("/api/banners", controllers.GetBannersActive)
 	r.GET("/api/transactions/recent", controllers.GetRecentTransactions)
+
+	// Blog Public
+	r.GET("/api/blog/categories", controllers.GetBlogCategoriesHome)
+	r.GET("/api/blog/articles", controllers.GetBlogArticlesPublic)
+	r.GET("/api/blog/articles/:slug", controllers.GetBlogArticleBySlug)
+	r.GET("/api/blog/stories", controllers.GetBlogStoriesPublic)
+	r.GET("/api/blog/stories/:slug", controllers.GetBlogStoryBySlug)
+	r.GET("/api/blog/comments", controllers.GetBlogComments)
+	r.POST("/api/blog/comments", controllers.CreateBlogComment)
+	r.GET("/api/blog/ratings", controllers.GetBlogRatings)
+	r.POST("/api/blog/ratings", controllers.CreateBlogRating)
+	r.POST("/api/blog/views", controllers.RecordBlogView)
 	r.POST("/api/vouchers/validate", controllers.ValidateVoucher)
 	
 	admin := r.Group("/api/admin")
@@ -154,6 +166,37 @@ func SetupRoutes(r *gin.Engine) {
 		admin.POST("/vouchers", controllers.CreateVoucher)
 		admin.PUT("/vouchers/:id", controllers.UpdateVoucher)
 		admin.DELETE("/vouchers/:id", controllers.DeleteVoucher)
-		
+
+		// Blog Management
+		admin.GET("/blog/categories", controllers.GetBlogCategories)
+		admin.POST("/blog/categories", controllers.CreateBlogCategory)
+		admin.PUT("/blog/categories/:id", controllers.UpdateBlogCategory)
+		admin.DELETE("/blog/categories/:id", controllers.DeleteBlogCategory)
+
+		admin.GET("/blog/articles", controllers.GetBlogArticlesAdmin)
+		admin.GET("/blog/articles/:id", controllers.GetBlogArticleByID)
+		admin.POST("/blog/articles", controllers.CreateBlogArticle)
+		admin.PUT("/blog/articles/:id", controllers.UpdateBlogArticle)
+		admin.DELETE("/blog/articles/:id", controllers.DeleteBlogArticle)
+		admin.PATCH("/blog/articles/:id/toggle", controllers.ToggleBlogArticle)
+
+		admin.GET("/blog/stories", controllers.GetBlogStoriesAdmin)
+		admin.GET("/blog/stories/:id", controllers.GetBlogStoryByID)
+		admin.POST("/blog/stories", controllers.CreateBlogStory)
+		admin.PUT("/blog/stories/:id", controllers.UpdateBlogStory)
+		admin.DELETE("/blog/stories/:id", controllers.DeleteBlogStory)
+		admin.PATCH("/blog/stories/:id/toggle", controllers.ToggleBlogStory)
+
+		admin.GET("/blog/stories/:id/pages", controllers.GetBlogStoryPages)
+		admin.POST("/blog/stories/:id/pages", controllers.CreateBlogStoryPage)
+		admin.PUT("/blog/stories/:id/pages/:pageId", controllers.UpdateBlogStoryPage)
+		admin.DELETE("/blog/stories/:id/pages/:pageId", controllers.DeleteBlogStoryPage)
+		admin.PUT("/blog/stories/:id/pages/reorder", controllers.ReorderBlogStoryPages)
+
+		admin.GET("/blog/comments", controllers.GetBlogCommentsAdmin)
+		admin.DELETE("/blog/comments/:id", controllers.DeleteBlogComment)
+		admin.PATCH("/blog/comments/:id/toggle", controllers.ToggleBlogComment)
+
+		admin.POST("/blog/upload", controllers.UploadBlogImage)
 	}
 }

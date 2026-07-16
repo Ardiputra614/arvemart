@@ -296,6 +296,12 @@ func CreateTransactionIpaymu(c *gin.Context) {
 		paymentURL = ipaymuGetString(respData, "Url")
 		sessionID = ipaymuGetString(respData, "SessionID")
 		refID = ipaymuGetString(respData, "ReferenceId")
+		if expiryStr := ipaymuGetString(respData, "Expired"); expiryStr != "" {
+			t, err := time.Parse("2006-01-02 15:04:05", expiryStr)
+			if err == nil {
+				ipaymuExpiry = &t
+			}
+		}
 
 	default:
 		// Redirect payment (ewallet, paylater)
@@ -326,6 +332,12 @@ func CreateTransactionIpaymu(c *gin.Context) {
 		paymentURL = ipaymuGetString(respData, "Url")
 		sessionID = ipaymuGetString(respData, "SessionID")
 		refID = ipaymuGetString(respData, "ReferenceId")
+		if expiryStr := ipaymuGetString(respData, "Expired"); expiryStr != "" {
+			t, err := time.Parse("2006-01-02 15:04:05", expiryStr)
+			if err == nil {
+				ipaymuExpiry = &t
+			}
+		}
 	}
 
 	ipaymuRespJSON, _ := json.Marshal(map[string]interface{}{

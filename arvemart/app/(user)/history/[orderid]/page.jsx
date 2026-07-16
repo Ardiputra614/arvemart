@@ -79,7 +79,9 @@ export default function History() {
   const [isConnected, setIsConnected] = useState(false);
   const [showRetryForm, setShowRetryForm] = useState(false);
   const [newCustomerNo, setNewCustomerNo] = useState("");
+  const [newCustomerNo2, setNewCustomerNo2] = useState("");
   const [retrying, setRetrying] = useState(false);
+  const [serviceData, setServiceData] = useState(null);
 
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
@@ -331,11 +333,18 @@ export default function History() {
       toast.error("Masukkan nomor tujuan baru");
       return;
     }
+    if (serviceData?.customer_no_format === "dua_input" && !newCustomerNo2.trim()) {
+      toast.error("Masukkan data kolom kedua");
+      return;
+    }
+    const combinedNo = serviceData?.customer_no_format === "dua_input"
+      ? `${newCustomerNo.trim()}${newCustomerNo2.trim()}`
+      : newCustomerNo.trim();
     setRetrying(true);
     try {
       await axios.post(
         `${url}/api/transaction/${order_id}/retry-with-number`,
-        { customer_no: newCustomerNo.trim() },
+        { customer_no: combinedNo },
         { withCredentials: true },
       );
       toast.success("Nomor diperbarui, transaksi akan diproses ulang");
@@ -435,6 +444,7 @@ export default function History() {
           console.error("Error parsing ipaymu_response:", e);
         }
       }
+      if (ipaymuResp?.expiredAt) return new Date(ipaymuResp.expiredAt);
       if (ipaymuResp?.Data?.ExpiryDate) return new Date(ipaymuResp.Data.ExpiryDate);
     }
     return null;
@@ -499,6 +509,9 @@ export default function History() {
         });
         if (response.data?.data) {
           updateFromData(response.data.data, showToast);
+        }
+        if (response.data?.service) {
+          setServiceData(response.data.service);
         }
       } catch (error) {
         console.error("Error fetching history:", error);
@@ -966,23 +979,15 @@ export default function History() {
             </div>
           )}
 
-          {/* Digiflazz Status Detail - show RC and message for non-success */}
+          {/* Digiflazz Status Detail - show message for non-success */}
           {(digiflazzStatus !== "Sukses" && digiflazzStatus !== "success" && digiflazzStatus !== "pending") &&
-            (finalData.last_error_code || finalData.status_message) && (
+            finalData.status_message && (
             <div className="bg-gray-800 rounded-xl p-6 mb-6">
               <h3 className="font-semibold mb-4 flex items-center">
                 <AlertCircle className="w-5 h-5 mr-2 text-yellow-400" />
                 Status Pengiriman
               </h3>
               <div className="space-y-2">
-                {finalData.last_error_code && (
-                  <div className="flex justify-between py-2 border-b border-gray-700">
-                    <span className="text-gray-400">Response Code</span>
-                    <span className="font-mono font-medium text-yellow-400">
-                      {finalData.last_error_code}
-                    </span>
-                  </div>
-                )}
                 {finalData.status_message && (
                   <div className="flex justify-between py-2 border-b border-gray-700">
                     <span className="text-gray-400">Pesan</span>
@@ -1018,16 +1023,30 @@ export default function History() {
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm text-gray-400 block mb-1">
-                      Nomor Tujuan Baru
+                      {serviceData?.field1_label || "Nomor Tujuan Baru"} *
                     </label>
                     <input
                       type="text"
                       value={newCustomerNo}
                       onChange={(e) => setNewCustomerNo(e.target.value)}
-                      placeholder="Masukkan nomor tujuan yang benar"
+                      placeholder={serviceData?.field1_placeholder || "Masukkan nomor tujuan yang benar"}
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  {serviceData?.customer_no_format === "dua_input" && serviceData?.field2_label && (
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-1">
+                        {serviceData.field2_label} *
+                      </label>
+                      <input
+                        type="text"
+                        value={newCustomerNo2}
+                        onChange={(e) => setNewCustomerNo2(e.target.value)}
+                        placeholder={serviceData.field2_placeholder || "Masukkan data"}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={handleRetryWithNumber}
@@ -1042,7 +1061,7 @@ export default function History() {
                       {retrying ? "Memproses..." : "Kirim"}
                     </button>
                     <button
-                      onClick={() => setShowRetryForm(false)}
+                      onClick={() => { setShowRetryForm(false); setNewCustomerNo(""); setNewCustomerNo2(""); }}
                       className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
                     >
                       Batal
@@ -1326,11 +1345,6 @@ export default function History() {
                   className={`font-semibold ${getDigiflazzStatusColor(digiflazzStatus)}`}
                 >
                   {formatDigiflazzStatus(digiflazzStatus)}
-                  {finalData.last_error_code && !(digiflazzStatus === "Sukses" || digiflazzStatus === "success") && (
-                    <span className="text-xs text-gray-500 ml-1">
-                      (RC: {finalData.last_error_code})
-                    </span>
-                  )}
                 </span>
               </div>
 

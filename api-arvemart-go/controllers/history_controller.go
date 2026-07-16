@@ -28,5 +28,11 @@ func GetHistory(h *gin.Context) {
 		}
 	}
 
-	h.JSON(http.StatusOK, gin.H{"message": "Berhasil", "data": history})
+	// Fetch service data for RC54 form (customer_no_format, field labels)
+	var service models.Service
+	if err := config.DB.Where("slug = ?", history.BuyerSkuCode).First(&service).Error; err != nil {
+		service = models.Service{}
+	}
+
+	h.JSON(http.StatusOK, gin.H{"message": "Berhasil", "data": history, "service": service})
 }

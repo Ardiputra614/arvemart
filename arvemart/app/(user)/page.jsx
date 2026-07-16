@@ -79,10 +79,6 @@ const PopularSection = ({ data }) => {
   );
 };
 
-// Stable aspect-ratio wrapper so skeleton and real banner are always
-// exactly the same height -> no more "small then big" jump on load.
-// Using inline style (not a Tailwind class) so it can never be purged
-// or missed by the JIT scanner.
 const BannerFrame = ({ children }) => (
   <div
     className="relative w-full overflow-hidden rounded-2xl"
@@ -185,7 +181,7 @@ export default function HomePage() {
       const cached = cacheManager.get(cacheKey);
 
       if (cached) {
-        setServices((prev) => append ? [...prev, ...cached.data] : cached.data);
+        setServices((prev) => (append ? [...prev, ...cached.data] : cached.data));
         setHasMore(pageNum < cached.meta.total_page);
         return;
       }
@@ -198,7 +194,7 @@ export default function HomePage() {
       const meta = json?.meta;
 
       cacheManager.set(cacheKey, { data: newData, meta });
-      setServices((prev) => append ? [...prev, ...newData] : newData);
+      setServices((prev) => (append ? [...prev, ...newData] : newData));
       setHasMore(pageNum < meta?.total_page);
     } catch (err) {
       console.error(err);
@@ -209,7 +205,6 @@ export default function HomePage() {
     }
   };
 
-  // Initial load
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -239,7 +234,6 @@ export default function HomePage() {
     fetchPopularServices();
   }, []);
 
-  // Load services saat kategori berubah
   useEffect(() => {
     if (!kategori) return;
     setPage(1);
@@ -248,7 +242,6 @@ export default function HomePage() {
     fetchPopularServices();
   }, [kategori]);
 
-  // Safety timeout
   useEffect(() => {
     const t = setTimeout(() => {
       setLoading(false);
@@ -257,7 +250,6 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Auto slide banner — satu useEffect saja
   useEffect(() => {
     if (banners.length <= 1) return;
     setActivePromo(0);
@@ -333,7 +325,6 @@ export default function HomePage() {
                 </div>
               ))}
 
-              {/* Dot indicator */}
               {banners.length > 1 && (
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                   {banners.map((_, idx) => (
@@ -358,7 +349,6 @@ export default function HomePage() {
 
       {/* MAIN */}
       <div className="container mx-auto px-4 pb-10 bg-[#37353E]">
-        {/* CATEGORY TABS */}
         <div className="flex overflow-x-auto mb-6 gap-2">
           {categories.map((cat) => (
             <button
@@ -375,7 +365,6 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* SERVICES */}
         {loading ? (
           <div className="text-center text-white py-10">Loading...</div>
         ) : services.length > 0 ? (

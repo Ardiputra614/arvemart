@@ -85,7 +85,7 @@ func GetPopularServices(c *gin.Context) {
 	var services []models.Service
 
 	err := config.DB.
-		Select("id, name, slug, logo, category_id").
+		Preload("Category").
 		Where("is_active = ? AND is_popular = ?", true, true).
 		Order("view_count DESC").
 		Limit(6).
