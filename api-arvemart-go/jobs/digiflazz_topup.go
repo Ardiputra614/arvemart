@@ -365,7 +365,8 @@ func (j *DigiflazzTopupJob) handleRetryable(ctx context.Context, order *models.T
         "next_retry", nextRetryAt.Format("15:04:05"),
     )
     
-    // TIDAK KIRIM NOTIFIKASI SETIAP RETRY, hanya jika max retries
+    // Schedule retry job - langsung tanpa delay
+    go j.scheduleRetry(order.ID, 0)
 
     return err
 }
@@ -397,6 +398,9 @@ func (j *DigiflazzTopupJob) handleUnknown(order *models.Transaction, message, rc
     
     // KIRIM NOTIFIKASI KE TELEGRAM
     go services.Telegram.SendOrderFailedNotification(order.OrderID, fmt.Sprintf("RC %s (tidak dikenal): %s", rc, message))
+
+    // Schedule retry for unknown RC
+    go j.scheduleRetry(order.ID, 10*time.Minute)
 
     return err
 }

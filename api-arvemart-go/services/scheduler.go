@@ -39,38 +39,61 @@ func calculateMarginByCategory(
 	// POSTPAID
 	// =========================
 	if productType == "postpaid" {
-
-		serviceFee := uint(1000)
-
-		return price + admin + serviceFee
+		return price + admin
 	}
 
 	// =========================
 	// PREPAID
 	// =========================
-
 	categoryLower := strings.ToLower(category)
 
 	var marginPercentage float64
+	isSmallMarginCategory := false
 
-	if strings.Contains(categoryLower, "game") {
-
+	switch {
+	case strings.Contains(categoryLower, "games"),
+		strings.Contains(categoryLower, "voucher game"),
+		strings.Contains(categoryLower, "free fire"),
+		strings.Contains(categoryLower, "mobile legends"),
+		strings.Contains(categoryLower, "pubg"),
+		strings.Contains(categoryLower, "valorant"),
+		strings.Contains(categoryLower, "garena"),
+		strings.Contains(categoryLower, "steam"),
+		strings.Contains(categoryLower, "google play"),
+		strings.Contains(categoryLower, "playstation"),
+		strings.Contains(categoryLower, "xbox"),
+		strings.Contains(categoryLower, "nintendo"):
 		marginPercentage = 0.04
 
-	} else if strings.Contains(categoryLower, "pulsa") {
+	case strings.Contains(categoryLower, "pulsa"):
+		marginPercentage = 0.01
+		isSmallMarginCategory = true
 
+	case strings.Contains(categoryLower, "data"),
+		strings.Contains(categoryLower, "paket data"),
+		strings.Contains(categoryLower, "internet"):
 		marginPercentage = 0.02
 
-	} else if strings.Contains(categoryLower, "data") {
+	case strings.Contains(categoryLower, "pln"),
+		strings.Contains(categoryLower, "listrik"),
+		strings.Contains(categoryLower, "token"):
+		marginPercentage = 0.01
+		isSmallMarginCategory = true
 
+	case strings.Contains(categoryLower, "ovo"),
+		strings.Contains(categoryLower, "gopay"),
+		strings.Contains(categoryLower, "dana"),
+		strings.Contains(categoryLower, "linkaja"),
+		strings.Contains(categoryLower, "emoney"),
+		strings.Contains(categoryLower, "e-money"):
 		marginPercentage = 0.02
 
-	} else if strings.Contains(categoryLower, "pln") {
+	case strings.Contains(categoryLower, "grab"),
+		strings.Contains(categoryLower, "gofood"),
+		strings.Contains(categoryLower, "voucher makanan"):
+		marginPercentage = 0.03
 
-		marginPercentage = 0.05
-
-	} else {
-
+	default:
 		marginPercentage = 0.03
 	}
 
@@ -78,16 +101,13 @@ func calculateMarginByCategory(
 
 	var roundedPrice uint
 
-	if sellingPrice < 10000 {
-
+	if isSmallMarginCategory {
 		roundedPrice = uint(math.Ceil(sellingPrice/100) * 100)
-
+	} else if sellingPrice < 10000 {
+		roundedPrice = uint(math.Ceil(sellingPrice/100) * 100)
 	} else if sellingPrice < 50000 {
-
 		roundedPrice = uint(math.Ceil(sellingPrice/500) * 500)
-
 	} else {
-
 		roundedPrice = uint(math.Ceil(sellingPrice/1000) * 1000)
 	}
 
@@ -362,59 +382,44 @@ Cek server atau Digiflazz sekarang.`, cmd, err.Error())
 		if err != nil {
 
 			newProduct := models.Product{
-				ProductName: item.ProductName,
-
-				Slug: slugifySlug(item.Brand),
-
-				Category: item.Category,
-				Brand:    item.Brand,
-				Type:     item.Type,
-
-				ProductType: productType,
-
-				SellerName: item.SellerName,
-
-				BuyerSkuCode: item.BuyerSKUCode,
-
+				ProductName:         item.ProductName,
+				Slug:                slugifySlug(item.Brand),
+				Category:            item.Category,
+				Brand:               item.Brand,
+				Type:                item.Type,
+				ProductType:         productType,
+				SellerName:          item.SellerName,
+				BuyerSkuCode:        item.BuyerSKUCode,
 				BuyerProductStatus:  item.BuyerProductStatus,
 				SellerProductStatus: item.SellerProductStatus,
-
-				UnlimitedStock: item.UnlimitedStock,
-				Multi:          item.Multi,
-
-				Stock: fmt.Sprintf("%d", item.Stock),
-
-				StartCutOff: item.StartCutOff,
-				EndCutOff:   item.EndCutOff,
-
-				Description: item.Desc,
-
-				Provider: "digiflazz",
-
-				IsActive: true,
-				Gangguan:       !item.BuyerProductStatus || !item.SellerProductStatus,
-				GangguanReason: gangguanReason(item.BuyerProductStatus, item.SellerProductStatus),
-				RetryCount:    0,
-				MaxRetry:      3,
-				RetryInterval: 5,
-
-				Price:         int64(basePrice),
-				SellingPrice: int64(sellingPrice),
+				UnlimitedStock:      item.UnlimitedStock,
+				Multi:               item.Multi,
+				Stock:               fmt.Sprintf("%d", item.Stock),
+				StartCutOff:         item.StartCutOff,
+				EndCutOff:           item.EndCutOff,
+				Description:         item.Desc,
+				Price:               int64(basePrice),
+				SellingPrice:        int64(sellingPrice),
+				Provider:            "digiflazz",
+				IsActive:            true,
+				Gangguan:            !item.BuyerProductStatus || !item.SellerProductStatus,
+				GangguanReason:      gangguanReason(item.BuyerProductStatus, item.SellerProductStatus),
+				RetryCount:          0,
+				MaxRetry:            3,
+				RetryInterval:       5,
+				CreatedAt:           time.Now(),
+				UpdatedAt:           time.Now(),
 			}
 
 			// postpaid
 			if cmd == "pasca" {
-
 				newProduct.Admin = int64(item.Admin)
 				newProduct.Commission = int64(item.Commission)
 			}
 
 			if err := config.DB.Create(&newProduct).Error; err != nil {
-
 				log.Printf("❌ Gagal create product %s: %v", item.BuyerSKUCode, err)
-
 			} else {
-
 				log.Printf("✅ Product baru dibuat: %s", item.BuyerSKUCode)
 			}
 
@@ -426,15 +431,26 @@ Cek server atau Digiflazz sekarang.`, cmd, err.Error())
 		// =========================
 
 		updates := map[string]interface{}{
+			"product_name":          item.ProductName,
+			"slug":                  slugifySlug(item.Brand),
+			"category":              item.Category,
+			"brand":                 item.Brand,
+			"type":                  item.Type,
+			"product_type":          productType,
+			"seller_name":           item.SellerName,
+			"price":                 int64(basePrice),
+			"selling_price":         int64(sellingPrice),
 			"buyer_product_status":  item.BuyerProductStatus,
 			"seller_product_status": item.SellerProductStatus,
+			"unlimited_stock":       item.UnlimitedStock,
+			"multi":                 item.Multi,
+			"stock":                 fmt.Sprintf("%d", item.Stock),
+			"start_cut_off":         item.StartCutOff,
+			"end_cut_off":           item.EndCutOff,
+			"description":           item.Desc,
 			"gangguan":              !item.BuyerProductStatus || !item.SellerProductStatus,
 			"gangguan_reason":       gangguanReason(item.BuyerProductStatus, item.SellerProductStatus),
-
-			"price":         int64(basePrice),
-			"selling_price": int64(sellingPrice),
-
-			"updated_at": time.Now(),
+			"updated_at":            time.Now(),
 		}
 
 		if cmd == "pasca" {
